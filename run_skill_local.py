@@ -1,7 +1,7 @@
 import os
 import yaml
-import requests
 import json
+from openai import OpenAI
 
 class LocalSkillExecutor:
     """
@@ -9,8 +9,11 @@ class LocalSkillExecutor:
     Load SKILL.md -> Assemble System Prompt -> Call local model for execution.
     """
     
-    def __init__(self, api_url="http://localhost:9006/v1", model="llama3"):
-        self.api_url = api_url
+    def __init__(self, api_url="http://localhost:9006/v1", model="llama3", api_key="sk-no-key-required"):
+        self.client = OpenAI(
+            base_url=api_url,
+            api_key=api_key
+        )
         self.model = model
 
     def load_skill(self, skill_path):
@@ -40,21 +43,17 @@ class LocalSkillExecutor:
 
         print(f"--- Executing skill: {metadata.get('name')} using local model [{self.model}] ---")
         
-        # Call local model via OpenAI-compatible API (e.g., Ollama, vLLM, LM Studio)
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_prompt}
-            ],
-            "temperature": 0.2  # Skills usually require high determinism
-        }
-
         try:
-            response = requests.post(f"{self.api_url}/chat/completions", json=payload)
-            response.raise_for_status()
-            result = response.json()
-            return result['choices'][0]['message']['content']
+            # Call local model via OpenAI SDK
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.2  # Skills usually require high determinism
+            )
+            return response.choices[0].message.content
         except Exception as e:
             return f"Execution failed: {str(e)}"
 
