@@ -11,6 +11,9 @@ Inspect Claude skils. Playing with [Drive](https://www.youtube.com/watch?v=fgT9z
 ## Reference
 
 * [anthropics/skills](https://github.com/anthropics/skills)
+* [accomplish-ai/accomplish](https://github.com/accomplish-ai/accomplish)
+* [NVIDIA/NemoClaw](https://github.com/NVIDIA/NemoClaw)
+* [NVIDIA/OpenShell](https://github.com/NVIDIA/OpenShell)
 
 ## Setup
 
@@ -30,3 +33,18 @@ uv install requests pyyaml
 ```bash
 python run_skill_local.py
 ```
+
+##
+```bash
+uv tool install -U openshell
+
+mkdir source
+cd source
+git clone https://github.com/NVIDIA/NemoClaw.git
+
+cd NemoClaw
+
+docker build -t nemoclaw .
+# openshell gateway start --name nemoclaw
+```
+
