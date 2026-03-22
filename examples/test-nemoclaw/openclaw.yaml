@@ -1,0 +1,68 @@
+{
+  "models":
+    {
+      "mode": "merge",
+      "providers":
+        {
+          "llamacpp":
+            {
+              "baseUrl": "http://host.openshell.internal:9006/v1",
+              "apiKey": "unused",
+              "api": "openai-completions",
+              "models":
+                [
+                  {
+                    "id": "lm",
+                    "name": "Local LlamaCPP Model",
+                    "reasoning": false,
+                    "input": ["text"],
+                    "cost":
+                      {
+                        "input": 0,
+                        "output": 0,
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                      },
+                    "contextWindow": 131072,
+                    "maxTokens": 4096,
+                  },
+                ],
+            },
+        },
+    },
+  "agents":
+    {
+      "defaults":
+        {
+          "model": { "primary": "llamacpp/lm" },
+          "compaction": { "mode": "safeguard" },
+        },
+    },
+  "commands":
+    {
+      "native": "auto",
+      "nativeSkills": "auto",
+      "restart": true,
+      "ownerDisplay": "raw",
+    },
+  "plugins":
+    {
+      "entries": { "nemoclaw": { "enabled": true } },
+      "installs":
+        {
+          "nemoclaw":
+            {
+              "source": "path",
+              "sourcePath": "/opt/nemoclaw",
+              "installPath": "/sandbox/.openclaw/extensions/nemoclaw",
+              "version": "0.1.0",
+              "installedAt": "2026-03-20T14:05:50.822Z",
+            },
+        },
+    },
+  "meta":
+    {
+      "lastTouchedVersion": "2026.3.11",
+      "lastTouchedAt": "2026-03-20T14:05:50.865Z",
+    },
+}

@@ -1,0 +1,6 @@
+# Ignore files and directories for Docker build context
+source/
+local_eval/
+**/target/
+dev-*
+k3s.yaml

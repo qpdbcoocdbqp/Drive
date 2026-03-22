@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: "0.1.0"
+min_openshell_version: "0.1.0"
+min_openclaw_version: "2026.3.0"
+digest: "" # Computed at release time
+
+profiles:
+  - default
+  - llamacpp
+
+description: |
+  NemoClaw blueprint: orchestrates OpenClaw sandbox creation, migration,
+  and NIM/vLLM inference routing inside OpenShell.
+
+components:
+  sandbox:
+    image: "ghcr.io/nvidia/openshell-community/sandboxes/openclaw:latest"
+    name: "openclaw"
+    forward_ports:
+      - 18789
+
+  inference:
+    profiles:
+      default:
+        provider_type: "openai"
+        provider_name: "llamacpp-local"
+        endpoint: "http://host.openshell.internal:9006/v1"
+        model: "lm"
+        credential_env: "OPENAI_API_KEY"
+        credential_default: "unused"
+
+      llamacpp:
+        provider_type: "openai"
+        provider_name: "llamacpp-local"
+        endpoint: "http://host.openshell.internal:9006/v1"
+        model: "lm"
+        credential_env: "OPENAI_API_KEY"
+        credential_default: "unused"
+
+  policy:
+    base: "sandboxes/openclaw/policy.yaml"
+    additions:
+      nim_service:
+        name: nim_service
+        endpoints:
+          - host: "nim-service.local"
+            port: 8000
+            protocol: rest

@@ -14,6 +14,7 @@ Inspect Claude skils. Playing with [Drive](https://www.youtube.com/watch?v=fgT9z
 * [accomplish-ai/accomplish](https://github.com/accomplish-ai/accomplish)
 * [NVIDIA/NemoClaw](https://github.com/NVIDIA/NemoClaw)
 * [NVIDIA/OpenShell](https://github.com/NVIDIA/OpenShell)
+* [NVIDIA/OpenShell-Community](https://github.com/NVIDIA/OpenShell-Community)
 
 ## Setup
 
@@ -51,12 +52,13 @@ git clone https://github.com/NVIDIA/NemoClaw.git
 cd NemoClaw
 
 docker build -t nemoclaw .
-# openshell gateway start --name nemoclaw
+openshell sandbox create --from examples/test-nemoclaw/Dockerfile --name nemoclaw
 ```
 
-* run OpenShell
+* Run OpenShell
 
   * gateway
+
     ```bash
     # start gateway
     openshell gateway start --name openshell --port 8080 --disable-gateway-auth
@@ -68,10 +70,13 @@ docker build -t nemoclaw .
 
     # terminal browser
     openshell term
+
+    # clean gateway
+    openshell gateway destroy --name openshell
     ```
 
   * sandbox
- 
+
     ```bash
     # create sandbox from Dockerfile
     openshell sandbox create \
@@ -93,4 +98,42 @@ docker build -t nemoclaw .
     # clean sandbox
     openshell forward stop 8081
     openshell sandbox delete byoc
+    ```
+
+  * provider
+
+    ```bash
+    
+    # start llama-server
+    ./llama-server -m ./models/your_model.gguf --port 9006 --host 0.0.0.0
+
+    # check llama-server
+    curl http://0.0.0.0:9006/health
+    curl http://0.0.0.0:9006/v1/models
+
+    # create provider
+    openshell provider create \
+      --name llamacpp-local \
+      --type openai \
+      --credential OPENAI_API_KEY=unused \
+      --config OPENAI_BASE_URL=http://host.openshell.internal:9006/v1
+
+    openshell inference set --provider llamacpp-local --model lm
+    openshell inference get
+    openshell provider list
+
+    # create sandbox to test provider
+    docker pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+
+    openshell sandbox create --name test-llama-local -- \
+        curl -k https://inference.local/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -d '{
+          "messages": [{"role": "user", "content": "hi, how are you?"}],
+          "max_tokens": 50
+        }'
+
+    openshell sandbox list
+    openshell sandbox delete test-llama-local
+
     ```
