@@ -53,6 +53,35 @@ cd NemoClaw
 
 docker build -t nemoclaw .
 openshell sandbox create --from examples/test-nemoclaw/Dockerfile --name nemoclaw
+openshell sandbox delete nclw
+nemoclaw onboard
+openshell sandbox connect my-assistant
+
+
+mkdir -p ~/.nemoclaw
+cat > ~/.nemoclaw/sandboxes.json << 'EOF'
+{
+  "sandboxes": [
+    {
+      "name": "my-assistant",
+      "model": "lm",
+      "provider": "llamacpp-local",
+      "gpuEnabled": false,
+      "policies": [],
+      "createdAt": "2026-03-23T14:43:57Z"
+    }
+  ],
+  "defaultSandbox": "my-assistant"
+}
+EOF
+nemoclaw my-assistant connect
+openclaw agents add main \
+  --provider openai \
+  --api-key dummy \
+  --base-url https://inference.local/v1 \
+  --model lm
+openclaw agent --agent main --local -m "hello" --session-id test
+
 ```
 
 * Run OpenShell
@@ -135,5 +164,4 @@ openshell sandbox create --from examples/test-nemoclaw/Dockerfile --name nemocla
 
     openshell sandbox list
     openshell sandbox delete test-llama-local
-
     ```
