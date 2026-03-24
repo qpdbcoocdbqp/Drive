@@ -75,11 +75,8 @@ cat > ~/.nemoclaw/sandboxes.json << 'EOF'
 }
 EOF
 nemoclaw my-assistant connect
-openclaw agents add main \
-  --provider openai \
-  --api-key dummy \
-  --base-url https://inference.local/v1 \
-  --model lm
+openshell sandbox connect my-assistant
+cat ~/.nemoclaw/agents/main/agent/auth-profiles.json
 openclaw agent --agent main --local -m "hello" --session-id test
 
 ```
@@ -164,4 +161,28 @@ openclaw agent --agent main --local -m "hello" --session-id test
 
     openshell sandbox list
     openshell sandbox delete test-llama-local
+    ```
+
+* Run OpenClaw
+
+  * agent access
+
+    ```bash
+    # create openclaw sandbox
+    openshell sandbox create \
+      --from source/NemoClaw/Dockerfile \
+      --name openclaw
+
+    # enter sandbox
+    openshell sandbox connect openclaw
+    # in sandbox
+    # test local model is available
+    curl  https://inference.local/v1/models
+
+    # send message with openclaw
+    openclaw agent --local \
+      -m "Don't use any tools. Just say hello back to me." \
+      --session-id test_hello \
+      --verbose on
+
     ```

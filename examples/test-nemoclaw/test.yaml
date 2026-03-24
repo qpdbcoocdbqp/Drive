@@ -1,0 +1,9 @@
+agents:
+  defaults:
+    model:
+      primary: "vllm/your-model-id"
+models:
+  providers:
+    vllm:
+      baseUrl: "http://localhost:8080/v1"
+      apiKey: "vllm-local"
