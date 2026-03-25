@@ -47,38 +47,53 @@ uv tool install -U openshell
 
 mkdir source
 cd source
-git clone https://github.com/NVIDIA/NemoClaw.git
+git clone https://github.com/NVIDIA/NemoClaw.git ./source/nemoclaw
 
-cd NemoClaw
+cd source/nemoclaw
+sed -i 's/\r$//' install.sh && ./install.sh
 
-docker build -t nemoclaw .
-openshell sandbox create --from examples/test-nemoclaw/Dockerfile --name nemoclaw
-openshell sandbox delete nclw
-nemoclaw onboard
-openshell sandbox connect my-assistant
+# Image: ghcr.io/nvidia/openshell/cluster:0.0.15
+# Image: ghcr.io/nvidia/openshell/gateway:0.0.15
 
+# ✓ Gateway nemoclaw destroyed.
+#   Using pinned OpenShell gateway image: ghcr.io/nvidia/openshell/cluster:0.0.15
+# ✓ Checking Docker
+# ✓ Downloading gateway
+# ✓ Initializing environment
+# ✓ Starting gateway
+# ✓ Gateway ready
+# ...
+#   ──────────────────────────────────────────────────
+#   Sandbox      nemo (Landlock + seccomp + netns)
+#   Model        lm (Other OpenAI-compatible endpoint)
+#   NIM          not running
+#   ──────────────────────────────────────────────────
+#   Next:
+#   Run:         nemoclaw nemo connect
+#   Status:      nemoclaw nemo status
+#   Logs:        nemoclaw nemo logs --follow
+#   ──────────────────────────────────────────────────
 
-mkdir -p ~/.nemoclaw
-cat > ~/.nemoclaw/sandboxes.json << 'EOF'
-{
-  "sandboxes": [
-    {
-      "name": "my-assistant",
-      "model": "lm",
-      "provider": "llamacpp-local",
-      "gpuEnabled": false,
-      "policies": [],
-      "createdAt": "2026-03-23T14:43:57Z"
-    }
-  ],
-  "defaultSandbox": "my-assistant"
-}
-EOF
-nemoclaw my-assistant connect
-openshell sandbox connect my-assistant
-cat ~/.nemoclaw/agents/main/agent/auth-profiles.json
-openclaw agent --agent main --local -m "hello" --session-id test
+# [INFO]  === Installation complete ===
 
+# Enter sandnox use openshell
+openshell sandbox connect nemo
+# or nemoclaw
+nemoclaw nemo connect
+
+# In sandbox
+# check model connection
+curl https://inference.local/v1/models
+
+# start openclaw features: gateway
+nohup openclaw gateway run > /tmp/gateway.log 2>&1 & 
+openclaw devices list
+openclaw devices approve <Device_Uid>
+# Terminal UI
+openclaw tui 
+
+# After exit sandbox, destroy the sandbox
+nemoclaw nemo destroy
 ```
 
 * Run OpenShell
@@ -177,7 +192,7 @@ openclaw agent --agent main --local -m "hello" --session-id test
     openshell sandbox connect openclaw
     # in sandbox
     # test local model is available
-    curl  https://inference.local/v1/models
+    curl https://inference.local/v1/models
 
     # send message with openclaw
     openclaw agent --local \
