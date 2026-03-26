@@ -50,7 +50,10 @@ cd source
 git clone https://github.com/NVIDIA/NemoClaw.git ./source/nemoclaw
 
 cd source/nemoclaw
+# First time run nemoclaw
 sed -i 's/\r$//' install.sh && ./install.sh
+# Or use onboard command
+nemoclaw onboard
 
 # Image: ghcr.io/nvidia/openshell/cluster:0.0.15
 # Image: ghcr.io/nvidia/openshell/gateway:0.0.15
@@ -84,6 +87,11 @@ nemoclaw nemo connect
 # In sandbox
 # check model connection
 curl https://inference.local/v1/models
+
+# show openclaw dashboard
+/usr/local/bin/nemoclaw-start
+# [gateway] Local UI: http://127.0.0.1:18789/#token=<token>
+# [gateway] Remote UI: http://127.0.0.1:18789/#token=<token>
 
 # start openclaw features: gateway
 nohup openclaw gateway run > /tmp/gateway.log 2>&1 & 
