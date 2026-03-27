@@ -1,3 +1,6 @@
+# cache
+*.pyc
+
 # folder
 source/
 local_eval_results*
