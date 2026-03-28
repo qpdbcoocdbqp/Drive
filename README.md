@@ -209,3 +209,86 @@ nemoclaw nemo destroy
       --verbose on
 
     ```
+
+## OpenClaw
+
+* Run in Docker
+
+  ```bash
+  # Pull image
+  docker pull ghcr.io/openclaw/openclaw:main-slim
+
+  # Run container and enter
+  docker run -it \
+  --name openclaw \
+  ghcr.io/openclaw/openclaw:main-slim bash
+
+  # In container
+  ## Start gateway
+  openclaw setup
+  openclaw gateway --port 18789 &
+  openclaw gateway status
+  openclaw status
+
+  # test gateway
+  >>> {"ok":true,"status":"live"}
+  >>> {"ready":true,"failing":[],"uptimeMs":294562}
+
+  ```
+
+* Gateway
+  * Dashboard: `http://127.0.0.1:18791`
+  * API: `http://127.0.0.1:18789`
+
+* Gateway: OpenAI API
+  * Enable `gateway.http.endpoints.chatCompletions.enabled` is `true`
+  * Set at `~/.openclaw/openclaw.json`.
+    ```json
+    {
+      ...,
+      "gateway": {
+        ...,
+        "http": {
+          "endpoints": {
+            "chatCompletions": { "enabled": true },
+          },
+        },
+      },
+    }
+    ```
+  * Restart gateway.
+    ```bash
+    openclaw gateway --force &
+    ```
+
+* Gateway: `v1/models`
+
+  ```bash
+  curl -sS http://localhost:18789/v1/models \
+    -H 'Authorization: Bearer <TOKEN>'
+  ```
+
+* Gateway: `v1/chat/completions`
+
+  ```bash
+  curl -sS http://localhost:18789/v1/chat/completions \
+    -H 'Authorization: Bearer <TOKEN>' \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "model": "openclaw/default",
+      "messages": [{"role":"user","content":"Hi"}]
+    }'
+  ```
+
+* Gateway: `v1/embeddings`
+
+  ```bash 
+  curl -sS http://127.0.0.1:18789/v1/embeddings \
+    -H 'Authorization: Bearer <TOKEN>' \
+    -H 'Content-Type: application/json' \
+    -H 'x-openclaw-model: <MODEL>' \
+    -d '{
+      "model": "openclaw/default",
+      "input": ["alpha", "beta"]
+    }'
+  ```
