@@ -1,9 +1,17 @@
 # cache
 *.pyc
-
+*.jsonl
+*.bak
+device*
 # folder
 source/
 local_eval_results*
+logs/
+sessions/
+canvas/
+devices/
+workspace/*.md
+workspace/.openclaw/
 
 # custom
 dev-*

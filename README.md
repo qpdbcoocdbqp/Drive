@@ -218,17 +218,25 @@ nemoclaw nemo destroy
   # Pull image
   docker pull ghcr.io/openclaw/openclaw:main-slim
 
-  # Run container and enter
-  docker run -it \
+  # Run container
+  docker run -itd \
+  -p 18789:18789 \
+  -p 18791:18791 \
+  -v "/$(pwd)/examples/test-openclaw/volume:/home/node/.openclaw" \
   --name openclaw \
   ghcr.io/openclaw/openclaw:main-slim bash
 
   # In container
+  docker exec -it openclaw bash
   ## Start gateway
-  openclaw setup
-  openclaw gateway --port 18789 &
+  openclaw gateway --bind lan --force
   openclaw gateway status
   openclaw status
+  openclaw dashboard --no-open
+
+  # set model provider
+  openclaw config
+
 
   # test gateway
   >>> {"ok":true,"status":"live"}
@@ -237,58 +245,22 @@ nemoclaw nemo destroy
   ```
 
 * Gateway
-  * Dashboard: `http://127.0.0.1:18791`
-  * API: `http://127.0.0.1:18789`
+  * API: `http://localhost:18789`
+  * Dashboard: `http://localhost:18789/#token=<TOKEN>`
+    * Approve device request on dashboard
+      ```bash
+      # list pending requests
+      openclaw devices list
+      # approve by request ID
+      openclaw devices approve <requestId>
+      # or approve latest request  
+      openclaw devices approve --latest
+      ```
 
 * Gateway: OpenAI API
-  * Enable `gateway.http.endpoints.chatCompletions.enabled` is `true`
-  * Set at `~/.openclaw/openclaw.json`.
-    ```json
-    {
-      ...,
-      "gateway": {
-        ...,
-        "http": {
-          "endpoints": {
-            "chatCompletions": { "enabled": true },
-          },
-        },
-      },
-    }
-    ```
-  * Restart gateway.
-    ```bash
-    openclaw gateway --force &
-    ```
+  * Setup: [`openclaw.json`](examples/test-openclaw/volume/openclaw.json)
+    * `v1/chat/completions`: `gateway.http.endpoints.chatCompletions.enabled`
+    * `v1/responses`: `gateway.http.endpoints.responses.enabled`
+    * `v1/embeddings`: `agents.defaults.memorySearch.enabled`
 
-* Gateway: `v1/models`
-
-  ```bash
-  curl -sS http://localhost:18789/v1/models \
-    -H 'Authorization: Bearer <TOKEN>'
-  ```
-
-* Gateway: `v1/chat/completions`
-
-  ```bash
-  curl -sS http://localhost:18789/v1/chat/completions \
-    -H 'Authorization: Bearer <TOKEN>' \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "model": "openclaw/default",
-      "messages": [{"role":"user","content":"Hi"}]
-    }'
-  ```
-
-* Gateway: `v1/embeddings`
-
-  ```bash 
-  curl -sS http://127.0.0.1:18789/v1/embeddings \
-    -H 'Authorization: Bearer <TOKEN>' \
-    -H 'Content-Type: application/json' \
-    -H 'x-openclaw-model: <MODEL>' \
-    -d '{
-      "model": "openclaw/default",
-      "input": ["alpha", "beta"]
-    }'
-  ```
+  * Python Client: [examples](examples/test-openclaw/client.py)
