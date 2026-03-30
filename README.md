@@ -217,14 +217,14 @@ nemoclaw nemo destroy
   ```bash
   # Pull image
   docker pull ghcr.io/openclaw/openclaw:main-slim
+  docker build -t openclaw:local -f examples/test-openclaw/dockerfile
 
   # Run container
   docker run -itd \
   -p 18789:18789 \
-  -p 18791:18791 \
   -v "/$(pwd)/examples/test-openclaw/volume:/home/node/.openclaw" \
   --name openclaw \
-  ghcr.io/openclaw/openclaw:main-slim bash
+  openclaw:local bash
 
   # In container
   docker exec -it openclaw bash
@@ -264,3 +264,31 @@ nemoclaw nemo destroy
     * `v1/embeddings`: `agents.defaults.memorySearch.enabled`
 
   * Python Client: [examples](examples/test-openclaw/client.py)
+
+* Add plugin tool
+  * [`get_weather`](examples/test-openclaw/volume/extensions/weather-plugin)
+  * install plugin
+
+    ```bash
+    docker exec -u 0 openclaw sh -c "chmod -R 755 /home/node/.openclaw/extensions/weather-plugin && chown -R node:node /home/node/.openclaw/extensions/weather-plugin"
+    docker exec openclaw openclaw config set plugins.allow '["weather-plugin"]' --strict-json
+    docker exec openclaw sh -c "openclaw plugins install /home/node/.openclaw/extensions/weather-plugin"
+    docker exec -d openclaw sh -c "openclaw gateway --bind lan --force"
+    docker exec openclaw sh -c "openclaw plugins list"
+    docker exec openclaw sh -c "openclaw gateway status"
+    docker exec openclaw sh -c "openclaw status"
+    ```
+
+  * testing
+  
+    ```bash
+    curl -sS http://localhost:18789/v1/chat/completions \
+      -H 'Authorization: Bearer <TOKEN>' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "model": "openclaw/default",
+        "messages": [
+          {"role": "user", "content": "What is the weather in Tokyo?"}
+        ]
+      }'
+    ```

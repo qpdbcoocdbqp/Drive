@@ -1,8 +1,10 @@
 # cache
 *.pyc
 *.jsonl
-*.bak
+*.bak*
+*.sqlite
 device*
+
 # folder
 source/
 local_eval_results*
