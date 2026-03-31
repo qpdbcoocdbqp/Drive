@@ -101,5 +101,15 @@
     "allow": [
       "weather-plugin"
     ]
+  },
+  "tools": {
+    "allow": [
+      "get_weather"
+    ],
+    "deny": [
+      "group:openclaw",
+      "group:fs",
+      "group:runtime"
+    ]
   }
 }

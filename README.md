@@ -272,6 +272,8 @@ nemoclaw nemo destroy
     ```bash
     docker exec -u 0 openclaw sh -c "chmod -R 755 /home/node/.openclaw/extensions/weather-plugin && chown -R node:node /home/node/.openclaw/extensions/weather-plugin"
     docker exec openclaw openclaw config set plugins.allow '["weather-plugin"]' --strict-json
+    docker exec openclaw openclaw config set tools.allow '["get_weather"]' --strict-json
+    docker exec openclaw openclaw config set tools.deny '["group:openclaw","group:fs","group:runtime"]' --strict-json
     docker exec openclaw sh -c "openclaw plugins install /home/node/.openclaw/extensions/weather-plugin"
     docker exec -d openclaw sh -c "openclaw gateway --bind lan --force"
     docker exec openclaw sh -c "openclaw plugins list"
