@@ -1,5 +1,6 @@
 import openai
 
+
 base_url = "http://localhost:18789/v1"
 api_key = "***"
 default_headers={
@@ -54,3 +55,14 @@ response = client.responses.create(
     )
 
 print(response.output_text)
+
+# test get_weather tool
+response = client.chat.completions.create(
+    model="openclaw/default",
+    messages=[
+        {"role": "user", "content": "What is the weather in Montreal?"},
+    ],
+    max_tokens=100,
+)
+
+print(response.choices[0].message.content)
