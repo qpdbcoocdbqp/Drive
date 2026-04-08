@@ -4,13 +4,13 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from module.token_counter import TokenCounter
-from module.token_pruner import TokenPruner, PruneResult
-from module.context_consolidator import ContextConsolidator, ConsolidationResult
-from module.memory_store import MemoryStore
-from module.tool_result_store import ToolResultStore
-from module.session_memory import SessionMemory
-from module.memory_index import MemoryIndex
+from .token_counter import TokenCounter
+from .token_pruner import TokenPruner, PruneResult
+from .context_consolidator import ContextConsolidator, ConsolidationResult
+from .memory_store import MemoryStore
+from .tool_result_store import ToolResultStore
+from .session_memory import SessionMemory
+from .memory_index import MemoryIndex
 
 
 class MemoryManager:
@@ -127,3 +127,7 @@ class MemoryManager:
 
     def count_tokens(self, text: str) -> int:
         return self.token_counter.count(text)
+
+    def cleanup_memories(self) -> List[str]:
+        """Remove persistent memory files that are no longer indexed."""
+        return self.memory_index.cleanup_unindexed_memories()

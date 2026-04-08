@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, List
 import re
 
-from module.token_counter import TokenCounter
+from .token_counter import TokenCounter
 
 
 @dataclass
