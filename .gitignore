@@ -9,13 +9,9 @@ device*
 source/
 local_eval_results*
 logs/
-sessions/
-canvas/
-devices/
-workspace/*.md
-workspace/.openclaw/
 volume/
 
 # custom
 dev-*
 k3s.yaml
+

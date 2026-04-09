@@ -1,9 +1,0 @@
-{
-  "id": "weather-plugin",
-  "name": "Weather Plugin",
-  "description": "Weather tool",
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false
-  }
-}
