@@ -1,6 +1,7 @@
 """Unified memory management orchestration following the 7-layer architecture."""
 
 import os
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -110,7 +111,8 @@ class MemoryManager:
         result = self.consolidator.dream(contexts)
         # Store the 'vivid memory' in persistence (Layer 4)
         # In a real app, this might be triggered asynchronously
-        memory_id = f"dream_{len(os.listdir(self.base_path / 'memory'))}"
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        memory_id = f"{timestamp}_dream"
         self.memory_store.save(memory_id, {"content": result.consolidated_text, "type": "dream"})
         
         # Update Index (Layer 5)

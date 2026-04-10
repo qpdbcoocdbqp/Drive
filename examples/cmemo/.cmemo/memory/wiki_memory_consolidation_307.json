@@ -1,7 +1,0 @@
-{
-  "content": "1. Primary Technical Concepts: Memory management (dynamic resource allocation), Virtual Memory (address space separation via paging/swapping), Fragmentation (internal/external), Automated Reclamation (Garbage Collection, Reference Counting), and Memory Protection (descriptors, protection keys).\n2. Historical/Contextual Details: Early systems (OS/360) lacked virtual memory, using protection keys for isolation. Burroughs/Unisys MCP pioneered commercial virtual memory using descriptors for enhanced safety. Modern systems rely on virtual memory abstraction for apparent memory expansion.\n3. Key Components/Definitions: Heap/Free Store (manual allocation pools), `malloc`/`free` (C standard library functions), Virtual Address Space (process's private, large address space), Descriptors (metadata protecting memory boundaries, used in MCP).\n4. Summary Evaluation (Concise): Memory management evolved from basic physical allocation (OS/360) to sophisticated virtual memory systems (MCP), utilizing techniques like paging and automated garbage collection to provide robust, abstracted, and scalable resource handling critical for modern multitasking OSs.",
-  "type": "dream_llm",
-  "source": "Wikipedia: Memory Management",
-  "original_tokens": 307,
-  "final_tokens": 218
-}
