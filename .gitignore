@@ -4,6 +4,7 @@
 *.bak*
 *.sqlite
 device*
+.hermes/
 
 # folder
 source/
@@ -14,4 +15,3 @@ volume/
 # custom
 dev-*
 k3s.yaml
-
