@@ -371,3 +371,16 @@ docker run -it \
   nousresearch/hermes-agent gateway run
 ```
 
+## Claw-Code
+
+### Setup
+
+```bash
+cargo install agent-code
+# check installed version
+agent --version
+# agent 0.14.0
+```
+
+
+
