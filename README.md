@@ -328,6 +328,10 @@ hermes gateway start
 
 # Check status and diagnose issues
 hermes doctor
+
+# Dashboard web UI
+hermes dashboard --port 18080 --no-open
+
 ```
 
 ### Run in Docker
@@ -363,7 +367,7 @@ Run in the background for messaging platforms (Telegram, Discord, etc.):
   ```
 
 ```bash
-docker run -it \
+docker run -itd \
   --name hermes \
   --memory=3g --cpus=2 --shm-size=1g \
   --restart unless-stopped \
