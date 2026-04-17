@@ -1,0 +1,40 @@
+services:
+  hermes-gateway:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes-gateway
+    restart: unless-stopped
+    command: gateway run
+    ports:
+      - "8642:8642"
+    volumes:
+      - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
+    environment:
+      - API_SERVER_ENABLED=true
+      - API_SERVER_KEY=your-secret-key
+  
+  hermes-dashboard:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes-dashboard
+    restart: unless-stopped
+    command: dashboard --host 0.0.0.0 --insecure
+    ports:
+      - "9119:9119"
+    volumes:
+      - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
+  
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: always
+    ports:
+      - "3000:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://host.docker.internal:8642/v1
+      - OPENAI_API_KEY=your-secret-key
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open-webui:/app/backend/data
+
+volumes:
+  open-webui:

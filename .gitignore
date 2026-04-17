@@ -5,6 +5,7 @@
 *.sqlite
 device*
 .hermes/
+.env
 
 # folder
 source/
