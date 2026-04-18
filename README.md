@@ -375,6 +375,13 @@ docker run -itd \
   nousresearch/hermes-agent gateway run
 ```
 
+* [joeynyc/hermes-hudui](https://github.com/joeynyc/hermes-hudui)
+
+```bash
+docker build -t hermes-hudui:0.5.0 .
+docker run -it --rm -p 3001:3001 --name hermes-hudui hermes-hudui:0.5.0 bash
+```
+
 ## Claw-Code
 
 ### Setup
