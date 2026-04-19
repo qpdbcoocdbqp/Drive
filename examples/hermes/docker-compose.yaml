@@ -11,7 +11,13 @@ services:
     environment:
       - API_SERVER_ENABLED=true
       - API_SERVER_KEY=your-secret-key
-  
+      - BROWSER_CDP_URL=${CHROME_HOST:-http://host.docker.internal:9222}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+
   hermes-dashboard:
     # image: nousresearch/hermes-agent:latest
     image: hermes-hudui:0.5.0

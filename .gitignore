@@ -12,6 +12,7 @@ source/
 local_eval_results*
 logs/
 volume/
+temp/
 
 # custom
 dev-*

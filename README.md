@@ -376,6 +376,7 @@ docker run -itd \
 ```
 
 * [joeynyc/hermes-hudui](https://github.com/joeynyc/hermes-hudui)
+* [browser tool](examples/hermes/browser.md)
 
 ```bash
 docker build -t hermes-hudui:0.5.0 .
