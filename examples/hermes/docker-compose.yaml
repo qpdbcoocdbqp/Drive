@@ -11,6 +11,7 @@ services:
     environment:
       - API_SERVER_ENABLED=true
       - API_SERVER_KEY=your-secret-key
+      - API_SERVER_HOST=0.0.0.0
       - BROWSER_CDP_URL=${CHROME_HOST:-http://host.docker.internal:9222}
     deploy:
       resources:
