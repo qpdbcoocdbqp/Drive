@@ -383,6 +383,18 @@ docker build -t hermes-hudui:0.5.0 .
 docker run -it --rm -p 3001:3001 --name hermes-hudui hermes-hudui:0.5.0 bash
 ```
 
+### Skill
+
+* Build-in skill is managed by `~/.hermes/skills/.bundled_manifest`
+* Delete Build-in skill: 
+  1. change skill hash to `none`
+  2. delete the SKILL.md
+  3. restart container
+  4. check skills: `hermes skills list`
+
+* Install skill: 
+  * Example `skill-creator`: `hermes skills install anthropics/skills/skill-creator`
+
 ## Claw-Code
 
 ### Setup
