@@ -1,0 +1,22 @@
+platform_toolsets:
+  cli:
+  - clarify
+  - code_execution
+  - file
+  - memory
+  - session_search
+  - skills
+  - terminal
+  - todo
+  - web
+  discord:
+  - browser
+  - clarify
+  - code_execution
+  - file
+  - memory
+  - messaging
+  - session_search
+  - terminal
+  - todo
+  - web

@@ -395,6 +395,23 @@ docker run -it --rm -p 3001:3001 --name hermes-hudui hermes-hudui:0.5.0 bash
 * Install skill: 
   * Example `skill-creator`: `hermes skills install anthropics/skills/skill-creator`
 
+
+### Tool
+
+* Build-in tools are managed by `~/.hermes/config.yaml`.
+* On CLI, `platform_toolsets.cli`
+* On Discord, `platform_toolsets.discord`
+
+```yaml
+platform_toolsets:
+  cli:
+  - web
+  - terminal
+  discord:
+  - web
+  - terminal
+```
+
 ## Claw-Code
 
 ### Setup
