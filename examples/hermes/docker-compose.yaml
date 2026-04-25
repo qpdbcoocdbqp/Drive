@@ -1,9 +1,10 @@
 services:
   hermes-gateway:
+    # hermes-agent version: 0.11.0
     image: nousresearch/hermes-agent:latest
     container_name: hermes-gateway
     restart: unless-stopped
-    command: gateway run
+    entrypoint: ["/bin/bash", "-c", "source /opt/hermes/.venv/bin/activate && hermes gateway run"]
     ports:
       - "8642:8642"
     volumes:

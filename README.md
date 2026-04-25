@@ -395,6 +395,19 @@ docker run -it --rm -p 3001:3001 --name hermes-hudui hermes-hudui:0.5.0 bash
 * Install skill: 
   * Example `skill-creator`: `hermes skills install anthropics/skills/skill-creator`
 
+* Create skill `all-in-podcast-latest-title-capture`
+
+  ```bash
+  # Run Hermes chat
+  hermes
+  # chat input messages
+  # input 1
+  To navigate youtube homepage, search `All-in podcast`
+  # input 2
+  find the latest episode. save title of the episode to a file. file name is the title.
+  # input 3
+  create a skill `all_in_podcast_latest_title_capture`. which handle the previous job.
+  ```
 
 ### Tool
 
