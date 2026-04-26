@@ -425,6 +425,43 @@ platform_toolsets:
   - terminal
 ```
 
+### Session
+
+* delete session
+
+```bash
+# show session
+hermes sessions list
+# delete 3 days ago
+hermes sessions prune --older-than 3
+# delete by ID
+hermes sessions delete <session_id>  -y
+```
+
+### Delegation task (Sub-agent)
+
+* Set in `~/.hermes/config.yaml`.
+
+```yaml
+delegation:
+  model: alm
+  provider: custom
+  base_url: http://host.docker.internal:9006/v1
+  api_key: "***"
+  inherit_mcp_toolsets: true
+  max_iterations: 50
+  child_timeout_seconds: 600
+  reasoning_effort: ""
+  max_concurrent_children: 3
+  max_spawn_depth: 1
+  orchestrator_enabled: true
+  default_toolsets:
+    - file
+    - skills
+    - terminal
+    - vision
+```
+
 ## Claw-Code
 
 ### Setup
