@@ -48,3 +48,15 @@ uv run hermes
 navigate https://en.wikipedia.org/wiki/Main_Page
 save screenshot to ~/media/
 ```
+
+### Container Chrome
+
+```bash
+docker build -t debian-chrome-cdp .
+docker run -itd \
+--shm-size=2g \
+-p 9223:9223 \
+-v /$(pwd)/debug:/home/chrome/debug \
+--entrypoint '' \
+--name headless-chrome debian-chrome-cdp bash
+```
