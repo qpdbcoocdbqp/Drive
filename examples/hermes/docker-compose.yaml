@@ -54,6 +54,19 @@ services:
       - HERMES_GID=${HERMES_GID:-1000}
     command: ["dashboard", "--no-open", "--insecure", "--host", "0.0.0.0", "--port", "9119"]
 
+  headless-chrome:
+    image: chrome-cdp
+    container_name: headless-chrome
+    restart: unless-stopped
+    ports:
+      - "9223:9223"
+    shm_size: 2g
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+          
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
     restart: always
