@@ -4,16 +4,20 @@ services:
     image: nousresearch/hermes-agent:v2026.4.30
     container_name: hermes-gateway
     restart: unless-stopped
-    entrypoint: ["/bin/bash", "-c", "source /opt/hermes/.venv/bin/activate && uv pip install langfuse && hermes gateway run"]
+    depends_on:
+      headless-chrome:
+        condition: service_healthy
+    # entrypoint: ["/bin/bash", "-c", "source /opt/hermes/.venv/bin/activate && uv pip install langfuse && hermes gateway run"]
+    entrypoint: ["/bin/bash", "/opt/hermes/hermes-gateway.sh"]
+    volumes:
+      - ./hermes-gateway.sh:/opt/hermes/hermes-gateway.sh
+      - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
     ports:
       - "8642:8642"
-    volumes:
-      - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
     environment:
       - API_SERVER_ENABLED=true
       - API_SERVER_KEY=your-secret-key
       - API_SERVER_HOST=0.0.0.0
-      - BROWSER_CDP_URL=${CHROME_HOST:-http://host.docker.internal:9222}
       - HERMES_UID=${HERMES_UID:-1000}
       - HERMES_GID=${HERMES_GID:-1000}
       - HERMES_LANGFUSE_PUBLIC_KEY=${HERMES_LANGFUSE_PUBLIC_KEY:-}
@@ -22,22 +26,10 @@ services:
       - HERMES_LANGFUSE_DEBUG=${HERMES_LANGFUSE_DEBUG:-false}
     deploy:
       resources:
+      
         limits:
           memory: 2G
           cpus: "2.0"
-
-  # hermes-dashboard:
-  #   # image: nousresearch/hermes-agent:latest
-  #   image: hermes-hudui:0.5.0
-  #   container_name: hermes-dashboard
-  #   restart: unless-stopped
-  #   command: hermes-hudui --host 0.0.0.0 --port 9119
-  #   ports:
-  #     - "9119:9119"
-  #   environment:
-  #     - HERMES_HOME=/opt/data
-  #   volumes:
-  #     - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
   
   dashboard:
     image: nousresearch/hermes-agent:v2026.4.30
@@ -60,13 +52,18 @@ services:
     restart: unless-stopped
     ports:
       - "9223:9223"
-    shm_size: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9223/json/version"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    shm_size: 1g
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1G
           cpus: "2.0"
-          
+
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
     restart: always

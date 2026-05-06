@@ -14,6 +14,18 @@ Inspect Claude skils. Playing with [Drive](https://www.youtube.com/watch?v=fgT9z
 
 ## Hermes
 
+### Deployment
+
+```bash
+# firecrawl server for web tool
+cd examples/firecrawl
+docker compose up -d
+
+# Integration: Hermes gateway, dashboard, langfuse, headless chrome
+cd examples/hermes
+docker compose up -d
+```
+
 ### Setup
 
 ```bash
@@ -176,8 +188,6 @@ delegation:
     - terminal
     - vision
 ```
-
-
 
 ## Relations
 

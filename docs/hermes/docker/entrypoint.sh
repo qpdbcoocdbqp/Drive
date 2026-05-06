@@ -9,6 +9,7 @@ rm -rf /home/chrome/debug/SingletonLock
 # Start Chrome (using exec so it becomes PID 1 and receives signals)
 exec /usr/bin/google-chrome-stable \
     --headless=new \
+    --remote-debugging-address=0.0.0.0 \
     --remote-debugging-port=9224 \
     --remote-allow-origins=* \
     --user-data-dir=/home/chrome/debug \
@@ -17,4 +18,15 @@ exec /usr/bin/google-chrome-stable \
     --no-default-browser-check \
     --disable-dev-shm-usage \
     --disable-gpu \
-    --disable-features=IsolateOrigins,site-per-process
+    --disable-features=IsolateOrigins,site-per-process \
+    --disable-software-rasterizer \
+    --disable-extensions \
+    --disable-background-networking \
+    --disable-sync \
+    --metrics-recording-only \
+    --mute-audio \
+    --disable-default-apps \
+    --disable-popup-blocking \
+    --disable-translate \
+    --hide-scrollbars \
+    --window-size=1920,1080
