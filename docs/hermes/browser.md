@@ -54,10 +54,11 @@ save screenshot to ~/media/
 ```bash
 # build image
 cd docs/hermes/docker
+sed -i 's/\r$//' entrypoint.sh
 docker build -t chrome-cdp -f cdp-Dockerfile .
 
 # run container
-cd /examples/hermes
+cd examples/hermes
 docker run -itd \
 --shm-size=2g \
 -p 9223:9223 \

@@ -77,4 +77,4 @@ uv pip install langfuse || true
 # 6. start hermes
 # -------------------------------
 echo "[Step 5] Starting Hermes Gateway..."
-exec hermes gateway run
+exec hermes gateway run --verbose

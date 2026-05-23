@@ -1,12 +1,14 @@
 services:
   hermes-gateway:
-    # hermes-agent version: 0.13.0
-    image: nousresearch/hermes-agent:latest
+    # hermes-agent version: 0.14.0
+    # date: 2026-05-23
+    image: nousresearch/hermes-agent:main
     container_name: hermes-gateway
     restart: unless-stopped
     depends_on:
       headless-chrome:
         condition: service_healthy
+    # entrypoint: ["/bin/bash", "-c", "sleep 1d"]
     # entrypoint: ["/bin/bash", "-c", "source /opt/hermes/.venv/bin/activate && uv pip install langfuse && hermes gateway run"]
     entrypoint: ["/bin/bash", "/opt/hermes/hermes-gateway.sh"]
     volumes:
@@ -17,6 +19,7 @@ services:
       - "8642:8642"
     environment:
       - HERMES_ALLOW_ROOT_GATEWAY=1
+      - GATEWAY_ALLOW_ALL_USERS=1
       - API_SERVER_ENABLED=true
       - API_SERVER_KEY=your-secret-key
       - API_SERVER_HOST=0.0.0.0
@@ -34,7 +37,7 @@ services:
           cpus: "2.0"
   
   dashboard:
-    image: nousresearch/hermes-agent:latest
+    image: nousresearch/hermes-agent:main
     container_name: hermes-dashboard
     restart: unless-stopped
     ports:
