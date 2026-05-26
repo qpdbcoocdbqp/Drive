@@ -3,7 +3,13 @@
 * install some populer package.
 
 ```bash
-uv pip install nano-pdf pymupdf pymupdf4llm python-docx marker-pdf
+# docx
+uv pip install python-docx
+# pdf (lighten)
+uv pip install nano-pdf pymupdf
+# pdf (heavy)
+uv pip install pymupdf4llm marker-pdf
+
 ```
 
 * skill
