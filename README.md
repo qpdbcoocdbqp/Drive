@@ -154,6 +154,17 @@ platform_toolsets:
 
 ### Session
 
+* `config.yaml`
+```yaml
+sessions:
+  auto_prune: false
+  retention_days: 90
+  vacuum_after_prune: true
+  min_interval_hours: 24
+  # write sessions snapshot at ~/.hermes/sessions
+  write_json_snapshots: true
+```
+
 * delete session
 
 ```bash

@@ -72,6 +72,7 @@ echo "BROWSER_CDP_URL=$BROWSER_CDP_URL" >> /etc/environment
 source /opt/hermes/.venv/bin/activate
 echo "[Step 4] Installing dependencies..."
 uv pip install langfuse || true
+hermes plugins enable observability/langfuse
 
 # -------------------------------
 # 6. start hermes
