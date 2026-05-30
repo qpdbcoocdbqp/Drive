@@ -74,6 +74,8 @@ echo "[Step 4] Installing dependencies..."
 uv pip install langfuse || true
 hermes plugins enable observability/langfuse
 
+uv pip install python-docx nano-pdf pymupdf
+
 # -------------------------------
 # 6. start hermes
 # -------------------------------
