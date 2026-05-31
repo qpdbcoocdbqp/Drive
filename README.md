@@ -85,10 +85,19 @@ docker run -it --rm \
 Run in the background for messaging platforms (Telegram, Discord, etc.):
 
 * Discord: `.hermes/.env`
+  - [Bot Token](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord)
 
   ```ini
   DISCORD_BOT_TOKEN=<BOT_TOKEN>
   DISCORD_ALLOWED_USERS=<USER_ID>
+  ```
+
+* Telegram: `.hermes/.env`
+  - [Bot Token](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram)
+
+  ```ini
+  TELEGRAM_BOT_TOKEN=<BOT_TOKEN>
+  TELEGRAM_ALLOWED_USERS=<USER_ID>
   ```
 
 ```bash
@@ -100,15 +109,9 @@ docker run -itd \
   nousresearch/hermes-agent gateway run
 ```
 
-* [joeynyc/hermes-hudui](https://github.com/joeynyc/hermes-hudui)
 * [browser tool](docs/hermes/browser.md)
 * [Web tool - firecrawl](docs/hermes/firecrawl-read-pdf.md)
 * [Custom toolsets](docs/hermes/custom_toolsets.md)
-
-```bash
-docker build -t hermes-hudui:0.5.0 .
-docker run -it --rm -p 3001:3001 --name hermes-hudui hermes-hudui:0.5.0 bash
-```
 
 ### Skill
 

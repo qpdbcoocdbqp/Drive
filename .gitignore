@@ -14,6 +14,9 @@ logs/
 volume/
 temp/
 
+# file
+*.tar.gz
+
 # custom
 dev-*
 k3s.yaml
