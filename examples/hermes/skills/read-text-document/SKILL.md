@@ -1,7 +1,7 @@
 ---
 name: read-text-document
 description: "Extracts raw text content from PDF and DOCX documents. Supports text-based PDFs via pymupdf and DOCX files via python-docx."
-version: 1.2.0
+version: 1.3.0
 author: Grok
 license: MIT
 platforms: [linux, macos, windows]
@@ -21,10 +21,10 @@ This skill provides reliable text extraction capabilities for both PDF and Micro
 
 ## Prerequisites
 
-Ensure the required libraries are installed in the environment:
+Ensure the required libraries are installed in the execution environment:
 
 ```bash
-pip install pymupdf python-docx
+uv pip install pymupdf python-docx
 ```
 
 ## Goal
@@ -33,104 +33,22 @@ To extract complete, structured plain text content from a given document file pa
 
 ## Usage Instructions
 
-### 1. Recommended Method: Using `execute_code` Tool
+### 1. Recommended Method: Using `uv run` Tool
 
-Execute the following Python code using the `execute_code` tool:
+To ensure the script runs in the same environment where dependencies are installed (especially when using tools like `uv`), use the `uv run` command via the `terminal` tool:
 
-```python
-from hermes_tools import execute_code
-
-def extract_text(file_path: str) -> str:
-    """Extract text from PDF or DOCX file, including tables."""
-    import os
-    
-    if not os.path.exists(file_path):
-        return f"Error: File not found - {file_path}"
-    
-    ext = os.path.splitext(file_path)[1].lower()
-    
-    try:
-        if ext == ".pdf":
-            import pymupdf
-            doc = pymupdf.open(file_path)
-            full_text = ""
-            for page in doc:
-                full_text += page.get_text("text") + "\n"
-            doc.close()
-            return full_text.strip()
-            
-        elif ext in [".docx", ".doc"]:
-            from docx import Document
-            doc = Document(file_path)
-            
-            full_text_list = []
-            
-            # Extract text from paragraphs
-            for paragraph in doc.paragraphs:
-                full_text_list.append(paragraph.text)
-                
-            # Extract text from tables
-            for table in doc.tables:
-                for row in table.rows:
-                    row_text = []
-                    for cell in row.cells:
-                        cell_text = []
-                        for paragraph in cell.paragraphs:
-                            cell_text.append(paragraph.text)
-                        row_text.append(" ".join(cell_text))
-                    full_text_list.append("\n".join(row_text))
-            
-            return "\n".join(full_text_list).strip()
-            
-        else:
-            return f"Error: Unsupported file format - {ext}"
-            
-    except Exception as e:
-        return f"Error processing document: {str(e)}"
-
-# Replace with your actual file path
-file_path = "/path/to/your/document.pdf"   # or .docx
-result = extract_text(file_path)
-print(result)
+```bash
+uv run python /opt/data/skills/productivity/read-text-document/scripts/read_document.py --file /path/to/your/document.pdf
+# or
+uv run python /opt/data/skills/productivity/read-text-document/scripts/read_document.py --file /path/to/your/document.docx
 ```
 
-### 2. Advanced Usage (Inline Execution)
-
-For quick extraction, you may use inline Python code:
-
-**For PDF:**
-```python
-import pymupdf
-doc = pymupdf.open("path/to/document.pdf")
-full_text = "\n".join([page.get_text("text") for page in doc])
-doc.close()
-print(full_text)
-```
-
-**For DOCX:**
-```python
-from docx import Document
-doc = Document("path/to/document.docx")
-full_text_list = []
-# Extract text from paragraphs
-for paragraph in doc.paragraphs:
-    full_text_list.append(paragraph.text)
-# Extract text from tables
-for table in doc.tables:
-    for row in table.rows:
-        row_text = []
-        for cell in row.cells:
-            cell_text = []
-            for paragraph in cell.paragraphs:
-                cell_text.append(paragraph.text)
-            row_text.append(" ".join(cell_text))
-    full_text_list.append("\n".join(row_text))
-print("\n".join(full_text_list))
-```
+This method ensures the script runs within the intended, dependency-aware environment.
 
 ## Limitations & Best Practices
 
 - **Scanned PDFs**: Text-based extraction will not work on image-based (scanned) PDFs. Use the `ocr-and-documents` skill in such cases.
+- **Environment Pitfall**: Always ensure dependencies are installed in the *exact* Python environment used to run the CLI script. If installation is performed outside the running agent session's environment, a `ModuleNotFoundError` may still occur.
 - **Complex Formatting**: Tables, headers, footers, and complex layouts may require additional post-processing.
 - **Large Files**: Very large documents may consume significant memory during extraction.
 - **DOCX Support**: Only `.docx` files are supported. Legacy `.doc` files are not supported by `python-docx`.
