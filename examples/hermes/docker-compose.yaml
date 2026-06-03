@@ -14,6 +14,7 @@ services:
     volumes:
       - ./hermes-gateway.sh:/opt/hermes/hermes-gateway.sh
       - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
+      - ${HERMES_OUTPUT_DIR:-./output}:/output
       - ${PACKAGE_DIR:-.}:/opt/package
     ports:
       - "8642:8642"
