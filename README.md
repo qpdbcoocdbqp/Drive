@@ -203,6 +203,11 @@ delegation:
     - vision
 ```
 
+### Desktop
+
+* [desktop page](https://hermes-agent.nousresearch.com/desktop)
+* [doc](https://github.com/NousResearch/hermes-agent/tree/main/apps/desktop)
+
 ## Relations
 
 ### [Skills](docs/anthropics-skills.md)
