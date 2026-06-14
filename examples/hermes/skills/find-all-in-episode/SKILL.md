@@ -1,24 +1,38 @@
 ---
 name: find-all-in-episode
-description: Locates and returns the title and episode number of the most recent episode of the All-In podcast by navigating to the official website.
+description: "Locates and returns the title and episode number of the most recent episodes of major podcasts by executing a targeted extraction script on the episodes archive."
+version: 1.1.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [Podcast, Latest, Episode, Audio, Search]
+    related_skills: [web_extract, web_search]
 ---
 
-# All-In Podcast Latest Episode Finder
+# 🎧 Podcast Episode Finder
 
-This skill automates the process of finding the most current episode title and number from the All-In podcast official website.
+This skill is designed to quickly locate the latest episode title and associated information for major podcasts (e.g., All-In). It uses a specialized extraction script that queries official archives or RSS feeds to bypass manual browsing.
 
-## Steps
+## Usage
 
-1. **Navigate:** Go to the official podcast website (`https://allin.com`).
-2. **Locate:** Scan the page for the main heading or link associated with the latest episode.
-3. **Extract:** Extract the episode title and the associated episode number (e.g., "EPISODE #XXX").
-4. **Return:** Present the extracted title and episode number as the final output.
+Run `find-all-in-episode` to automatically retrieve the most recent podcast metadata.
 
-## Verification
+### Example Workflow
 
-The output must contain a clear and verifiable episode title and a corresponding episode number.
+1. **Discovery:** Identify the podcast name (e.g., "All-In").
+2. **Extraction:** Execute the `podcast_archive_extractor.py` script, passing the podcast name.
+3. **Output:** Receive the latest title, episode number, and brief summary.
 
-## Notes
+## Limitations
 
-- This skill relies on the structure of `https://allin.com` remaining consistent.
-- If the site layout changes, this skill may require patching.
+*   **Scope:** Currently optimized for major, well-indexed podcasts (e.g., those with public RSS feeds or dedicated data endpoints).
+*   **Accuracy:** Accuracy depends on the script successfully parsing the target podcast's data structure.
+*   **Tool Reliance:** Requires `terminal` access to execute the specialized extraction script.
+
+## Available Tools
+
+*   `terminal`: Used to execute the specialized extraction script.
+
+---

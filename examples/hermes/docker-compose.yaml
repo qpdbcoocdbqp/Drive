@@ -1,7 +1,7 @@
 services:
   hermes-gateway:
-    # hermes-agent version: 0.15.1
-    # date: 2026-06-01
+    # hermes-agent version: v0.16.0 (2026.6.5)
+    # date: 2026-06-14
     image: nousresearch/hermes-agent:main
     container_name: hermes-gateway
     restart: unless-stopped
