@@ -44,25 +44,21 @@ Pass the raw text output from Step 1 into a Python script (via `execute_code`) t
 **Required JSON Schema:**
 ```json
 {
-  "主要公司": "string",
-  "職缺名稱": "string",
-  "工作內容": ["string", "string", ...],
-  "其他條件": {
-    "工作經歷": "string",
-    "學歷要求": "string",
-    "語文條件": "string",
-    "其他技能要求": ["string", "string", ...]
-  }
+  "campany": "string",
+  "vacancy": "string",
+  "job_description": ["string", "string", ...],
+  "other_conditions": ["string", "string", ...],
 }
 ```
+  This script utilizes the internal LLM parsing logic to handle layout variations and automatically outputs the final JSON.
 
-**Execution Logic (Internal to `execute_code`):**
-1.  Receive the raw text content as input.
-2.  Use string manipulation and regex (or a specialized LLM call if complex) to identify the company name, job title, JD list, and condition fields.
-3.  Generate a timestamp for the filename.
-4.  Write the final JSON object to `/output/<job_name>_<date>.json` using the `write_file` tool.
+  ### Alternative Workflow (Step-by-Step)
+  If a standalone script is not preferred, the manual workflow is:
+  1.  Use the `productivity/read-text-document` skill to convert the PDF file into plain, raw markdown text.
+  2.  Pass the raw text output from Step 1 into a Python script (via `execute_code`) that performs the necessary extraction, cleaning, and formatting into the required JSON schema.
 
-## Limitations & Best Practices
-- **Text Quality**: The extraction quality heavily depends on the PDF being text-based. If the PDF is scanned, use the `ocr-and-documents` skill.
+  Required JSON Schema:
+  ...
+
 - **Parsing Complexity**: Complex or poorly formatted layouts (e.g., tables, mixed languages) may require iterative refinement of the extraction logic in Step 2.
 - **Output**: The final deliverable is the successfully created JSON file.
