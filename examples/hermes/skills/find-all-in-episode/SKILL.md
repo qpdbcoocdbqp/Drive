@@ -22,7 +22,7 @@ Run `find-all-in-episode` to automatically retrieve the most recent podcast meta
 ### Example Workflow
 
 1. **Discovery:** Identify the podcast name (e.g., "All-In").
-2. **Extraction:** Execute the `podcast_archive_extractor.py` script, passing the podcast name.
+2. **Extraction:** Execute the `./scripts/extract_allin_latest.py` script, passing the podcast name.
 3. **Output:** Receive the latest title, episode number, and brief summary.
 
 ## Limitations

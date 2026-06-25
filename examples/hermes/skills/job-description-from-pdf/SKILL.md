@@ -1,13 +1,14 @@
 ---
 name: job-description-from-pdf
 description: "Extract company, job name, job description (JD), and other conditions from a PDF and output the result in a structured JSON file."
-version: 1.0.0
-author: Agent
+version: 1.2.0
+author: Qwythos
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [Document, PDF, JSON, Extraction, Job Posting]
+    related_skills: [read-text-document]
 ---
 
 # Job Description from PDF
@@ -24,7 +25,6 @@ The final output is a JSON file named `/output/<job_name>_<date>.json`.
 
 ## Prerequisites
 - The `productivity/read-text-document` skill must be installed and available.
-- The execution environment must have the necessary Python dependencies (`pymupdf`, `python-docx`) if running the extraction logic locally.
 
 ## Workflow (Chaining Skills)
 
@@ -50,15 +50,7 @@ Pass the raw text output from Step 1 into a Python script (via `execute_code`) t
   "other_conditions": ["string", "string", ...],
 }
 ```
-  This script utilizes the internal LLM parsing logic to handle layout variations and automatically outputs the final JSON.
 
-  ### Alternative Workflow (Step-by-Step)
-  If a standalone script is not preferred, the manual workflow is:
-  1.  Use the `productivity/read-text-document` skill to convert the PDF file into plain, raw markdown text.
-  2.  Pass the raw text output from Step 1 into a Python script (via `execute_code`) that performs the necessary extraction, cleaning, and formatting into the required JSON schema.
-
-  Required JSON Schema:
-  ...
-
-- **Parsing Complexity**: Complex or poorly formatted layouts (e.g., tables, mixed languages) may require iterative refinement of the extraction logic in Step 2.
-- **Output**: The final deliverable is the successfully created JSON file.
+## Robustness
+ - The two-step workflow (raw text extraction + custom parsing) ensures stable, correct parsing on the first attempt.
+ Raw text extraction captures all content; custom parsing applies targeted heuristics for company names, job titles, descriptions, and conditions.
