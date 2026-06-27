@@ -29,4 +29,6 @@ COPY --chown=chrome:chrome --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.s
 
 EXPOSE 9223/tcp
 
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
