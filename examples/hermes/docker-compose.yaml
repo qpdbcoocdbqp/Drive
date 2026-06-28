@@ -1,7 +1,7 @@
 services:
   hermes-gateway:
-    # hermes-agent version: v0.16.0 (2026.6.5)
-    # date: 2026-06-14
+    # hermes-agent version: v0.17.0 (2026.6.19)
+    # date: 2026-06-28
     image: nousresearch/hermes-agent:main
     container_name: hermes-gateway
     restart: unless-stopped
@@ -10,7 +10,7 @@ services:
         condition: service_healthy
     # entrypoint: ["/bin/bash", "-c", "sleep 1d"]
     # entrypoint: ["/bin/bash", "-c", "source /opt/hermes/.venv/bin/activate && uv pip install langfuse && hermes gateway run"]
-    entrypoint: ["/bin/bash", "/opt/hermes/hermes-gateway.sh"]
+    entrypoint: ["/bin/bash", "-c", "apt update && apt install -y poppler-utils && /opt/hermes/hermes-gateway.sh"]
     volumes:
       - ./hermes-gateway.sh:/opt/hermes/hermes-gateway.sh
       - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
