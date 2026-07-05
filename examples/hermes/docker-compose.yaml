@@ -1,8 +1,8 @@
 services:
   hermes-gateway:
-    # hermes-agent version: v0.17.0 (2026.6.19)
-    # date: 2026-06-28
-    image: nousresearch/hermes-agent:main
+    # hermes-agent version: v0.18.0 (2026.7.1)
+    # date: 2026-07-05
+    image: nousresearch/hermes-agent:v2026.7.1
     container_name: hermes-gateway
     restart: unless-stopped
     depends_on:
@@ -41,7 +41,7 @@ services:
           cpus: "2.0"
   
   dashboard:
-    image: nousresearch/hermes-agent:main
+    image: nousresearch/hermes-agent:v2026.7.1
     container_name: hermes-dashboard
     restart: unless-stopped
     ports:
