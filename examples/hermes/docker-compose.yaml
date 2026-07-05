@@ -23,7 +23,8 @@ services:
       - HERMES_ALLOW_ROOT_GATEWAY=1
       - GATEWAY_ALLOW_ALL_USERS=1
       - API_SERVER_ENABLED=true
-      - API_SERVER_KEY=your-secret-key
+      - API_SERVER_KEY=${API_SERVER_KEY:-} # openssl rand -hex 32
+      - HERMES_WRITE_SAFE_ROOT=${HERMES_WRITE_SAFE_ROOT:-}
       - API_SERVER_HOST=0.0.0.0
       - FIRECRAWL_API_URL=${FIRECRAWL_API_URL:-}
       - HERMES_UID=${HERMES_UID:-1000}
