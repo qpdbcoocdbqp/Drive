@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
+_DEBUG = False
 _FRONTMATTER = re.compile(r"\A---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", re.DOTALL)
 _SLUG = re.compile(r"[^a-z0-9-]+")
 
@@ -342,10 +344,41 @@ class OpenAISkillRunner:
         },
     }
 
-    def __init__(self, client: Any, catalog: SkillCatalog, *, model: str) -> None:
+    _BASH_TOOL: dict[str, Any] = {
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "description": (
+                "Execute a shell command and return its stdout + stderr. "
+                "Use this to run git commands (e.g. git diff, git log), "
+                "read files, or gather any information from the local environment."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The shell command to execute.",
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "description": (
+                            "Optional working directory for the command. "
+                            "Defaults to the current working directory."
+                        ),
+                    },
+                },
+                "required": ["command"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+    def __init__(self, client: Any, catalog: SkillCatalog, *, model: str, cwd: str | Path | None = None) -> None:
         self.client = client
         self.catalog = catalog
         self.model = model
+        self.cwd = Path(cwd).resolve() if cwd else None
 
     # ------------------------------------------------------------------
     # System prompt (Tier 1)
@@ -433,11 +466,11 @@ class OpenAISkillRunner:
             {"role": "user", "content": self.invocation_message(prompt, skills)},
         ]
 
-        for _ in range(max_tool_rounds + 1):
+        for round_num in range(max_tool_rounds + 1):
             kwargs: dict[str, Any] = {
                 "model": self.model,
                 "messages": messages,
-                "tools": [self._TOOL],
+                "tools": [self._TOOL, self._BASH_TOOL],
             }
             if temperature is not None:
                 kwargs["temperature"] = temperature
@@ -445,6 +478,18 @@ class OpenAISkillRunner:
             response = self.client.chat.completions.create(**kwargs)
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
+
+            # --- debug ---
+            if _DEBUG:
+                finish_reason = response.choices[0].finish_reason
+                print(f"[Round {round_num}] finish_reason={finish_reason!r}  tool_calls={len(tool_calls)}")
+                if message.content:
+                    preview = message.content[:300].replace("\n", " ")
+                    print(f"  content preview: {preview!r}")
+                for i, call in enumerate(tool_calls):
+                    print(f"  tool_call[{i}]: {call.function.name}({call.function.arguments})")
+            # --- end debug ---
+
             messages.append(self._assistant_message(message))
 
             if not tool_calls:
@@ -452,25 +497,52 @@ class OpenAISkillRunner:
 
             for call in tool_calls:
                 result = self._dispatch_tool(call)
+                if _DEBUG:
+                    print(f"  -> tool result preview: {str(result)[:200]!r}")  # debug
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call.id,
                     "content": result,
                 })
-
+    
         raise RuntimeError(f"Skill tool loop exceeded {max_tool_rounds} rounds without a final response.")
 
     def _dispatch_tool(self, call: Any) -> str:
         """Execute a single tool call and return the string result for the model."""
-        if call.function.name != "skill_view":
-            return "Only skill_view is available in this runner."
-        try:
-            args: dict[str, Any] = json.loads(call.function.arguments)
-            name: str = args["name"]
-            file_path: str | None = args.get("file_path")
-            return self.catalog.view(name, file_path=file_path)
-        except (KeyError, TypeError, ValueError, SkillNotFoundError, FileNotFoundError) as exc:
-            return f"skill_view error: {exc}"
+        if call.function.name == "skill_view":
+            try:
+                args: dict[str, Any] = json.loads(call.function.arguments)
+                name: str = args["name"]
+                file_path: str | None = args.get("file_path")
+                return self.catalog.view(name, file_path=file_path)
+            except (KeyError, TypeError, ValueError, SkillNotFoundError, FileNotFoundError) as exc:
+                return f"skill_view error: {exc}"
+
+        if call.function.name == "bash":
+            try:
+                args = json.loads(call.function.arguments)
+                command: str = args["command"]
+                cwd = args.get("cwd") or self.cwd
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                    timeout=60,
+                )
+                output = result.stdout
+                if result.stderr:
+                    output += "\n[stderr]\n" + result.stderr
+                if result.returncode != 0:
+                    output += f"\n[exit code: {result.returncode}]"
+                return output or "(no output)"
+            except subprocess.TimeoutExpired:
+                return "bash error: command timed out after 60 seconds"
+            except Exception as exc:
+                return f"bash error: {exc}"
+
+        return f"Unknown tool: {call.function.name!r}"
 
     @staticmethod
     def _assistant_message(message: Any) -> dict[str, Any]:
