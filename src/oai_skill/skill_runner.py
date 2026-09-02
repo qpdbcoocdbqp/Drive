@@ -44,6 +44,16 @@ _SINGLE_SKILL_MARKER = "The full skill content is loaded below.]"
 _SINGLE_SKILL_INSTRUCTION = (
     "The user has provided the following instruction alongside the skill invocation: "
 )
+# Appended after the skill body to prevent the model from stopping after the
+# first skill_view tool call.  Skills that route across multiple reference
+# files (e.g. sepia) require ALL files listed in their routing table to be
+# loaded via skill_view before a final response is produced.
+_ROUTING_REMINDER = (
+    "[IMPORTANT: Before producing your final response you MUST load every "
+    "reference file required by the skill's routing table for this input. "
+    "Do NOT output your answer until all required skill_view calls have "
+    "returned. Stopping after the first reference is a routing violation.]"
+)
 
 
 class SkillNotFoundError(LookupError):
@@ -430,7 +440,7 @@ class OpenAISkillRunner:
                 f'{_SKILL_INVOCATION_PREFIX}"{skill.name}" skill, indicating they want '
                 f"you to follow its instructions. {_SINGLE_SKILL_MARKER}"
             )
-            blocks.append(activation_note + "\n\n" + body)
+            blocks.append(activation_note + "\n\n" + body + "\n\n" + _ROUTING_REMINDER)
 
         stable_scaffold = "\n\n".join(blocks)
         return (
@@ -449,6 +459,7 @@ class OpenAISkillRunner:
         prompt: str,
         *,
         skills: Sequence[str] = (),
+        preload: Sequence[tuple[str, str | None]] = (),
         temperature: float | None = None,
         max_tool_rounds: int = 8,
     ) -> str:
@@ -458,6 +469,13 @@ class OpenAISkillRunner:
         round-trip required).  The model may still call ``skill_view`` for
         additional skills it finds relevant in the index.
 
+        *preload* accepts a sequence of ``(skill_name, file_path)`` pairs whose
+        content is injected as simulated tool results *before* the first API
+        call.  Use this to front-load reference files that the skill's routing
+        table requires so the model does not need to discover and load them
+        itself — preventing premature stops after only partial routing.
+        ``file_path`` may be ``None`` to load the skill body itself.
+
         Raises ``RuntimeError`` if the model keeps calling tools for more than
         *max_tool_rounds* iterations without producing a final text response.
         """
@@ -465,6 +483,37 @@ class OpenAISkillRunner:
             {"role": "system", "content": self.system_prompt()},
             {"role": "user", "content": self.invocation_message(prompt, skills)},
         ]
+
+        # Inject pre-loaded references as simulated skill_view tool exchanges.
+        # The model sees them as already-completed tool calls and will not
+        # re-fetch them; it can proceed directly to the operation.
+        for idx, (skill_name, file_path) in enumerate(preload):
+            tool_call_id = f"preload_{idx}"
+            args: dict[str, Any] = {"name": skill_name}
+            if file_path is not None:
+                args["file_path"] = file_path
+            content = self.catalog.view(skill_name, file_path=file_path)
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": "skill_view",
+                        "arguments": json.dumps(args),
+                    },
+                }],
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": content,
+            })
+
+        # Track whether a routing-check follow-up has already been injected.
+        # We only do this once, and only for explicit skill invocations.
+        _routing_checked = False
 
         for round_num in range(max_tool_rounds + 1):
             kwargs: dict[str, Any] = {
@@ -493,6 +542,27 @@ class OpenAISkillRunner:
             messages.append(self._assistant_message(message))
 
             if not tool_calls:
+                # For explicit skill invocations, give the model one chance to
+                # load any remaining reference files required by the routing
+                # table before we accept the response as final.  This handles
+                # skills like sepia that route across multiple reference files:
+                # the model may stop after the first file without realising it
+                # still needs to load more.
+                if skills and not _routing_checked:
+                    _routing_checked = True
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "[Routing check] Review the skill's routing table against "
+                            "the input you just processed. Have you loaded every "
+                            "reference file the routing table requires for this input? "
+                            "If yes, output your final response now. "
+                            "If no, load the missing files with skill_view first."
+                        ),
+                    })
+                    if _DEBUG:
+                        print("  [routing check injected]")
+                    continue
                 return getattr(message, "content", None) or ""
 
             for call in tool_calls:
