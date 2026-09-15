@@ -8,17 +8,17 @@ def main():
     try:
         # 1. get skill list
         skills_response = client._client._request_raw("skills/list", {})
-        print("\n--- Codex Skills 清單 (skills/list) ---")
+        print("\n--- Codex Skills (skills/list) ---")
         print(json.dumps(skills_response, indent=2, ensure_ascii=False))
 
         # 2. get plugin list
         plugins_response = client._client._request_raw("plugin/list", {})
-        print("\n--- Codex Plugins 清單 (plugin/list) ---")
+        print("\n--- Codex Plugins (plugin/list) ---")
         print(json.dumps(plugins_response, indent=2, ensure_ascii=False))
 
         # 3. get models list
         models_response = client._client._request_raw("model/list", {})
-        print("\n--- Codex Models 清單 (model/list) ---")
+        print("\n--- Codex Models (model/list) ---")
         print(json.dumps(models_response, indent=2, ensure_ascii=False))
 
     finally:

@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
-_DEBUG = False
+_DEBUG = True
 _FRONTMATTER = re.compile(r"\A---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", re.DOTALL)
 _SLUG = re.compile(r"[^a-z0-9-]+")
 
