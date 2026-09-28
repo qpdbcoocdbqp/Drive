@@ -13,6 +13,9 @@ services:
       APP_LLM_BASE_URL: "${APP_LLM_BASE_URL:-http://host.docker.internal:19001/v1}"
       APP_LLM_API_KEY: "${APP_LLM_API_KEY:-}"
       APP_LOCAL_PROVIDER_ID: "${APP_LOCAL_PROVIDER_ID:-local-runtime}"
+      # Docker supplies the security boundary. Avoid a nested bwrap namespace,
+      # which is unavailable after dropping all container capabilities.
+      APP_SANDBOX_MODE: "${APP_SANDBOX_MODE:-danger-full-access}"
       APP_SKILL_ROOTS: /skills
       APP_WORKSPACE: /workspace
       APP_CODEX_HOME: /var/lib/codex

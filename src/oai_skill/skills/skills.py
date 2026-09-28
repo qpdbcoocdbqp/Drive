@@ -1,4 +1,4 @@
-"""Load SKILL.md documents and make them available to an OpenAI chat model.
+"""Discover SKILL.md documents and execute OpenAI-compatible skill flows.
 
 The module deliberately treats a skill as instructions, not executable Python.
 The model can discover compact metadata in its system prompt and requests the
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
-_DEBUG = True
+_DEBUG = False
 _FRONTMATTER = re.compile(r"\A---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", re.DOTALL)
 _SLUG = re.compile(r"[^a-z0-9-]+")
 
@@ -305,6 +305,28 @@ class SkillCatalog:
                 + "\n".join(f"- {f}" for f in extras)
             )
         return "\n".join(parts)
+
+
+class SkillInstructionBuilder:
+    """Build stable developer instructions from a skill catalog."""
+
+    def __init__(self, catalog: SkillCatalog) -> None:
+        self.catalog = catalog
+
+    def build(self) -> str:
+        return (
+            "Local skills are read-only instructions exposed by the skill_manager MCP "
+            "server. Before answering, inspect the compact index below. When a skill is "
+            "relevant, load it with skill_view and follow it. Load supporting files only "
+            "when the skill instructions require them. Never execute a skill name as a "
+            "shell command.\n\n"
+            f"{self.catalog.index()}"
+        )
+
+
+def build_skills_developer_instructions(catalog: SkillCatalog) -> str:
+    """Compatibility function backed by :class:`SkillInstructionBuilder`."""
+    return SkillInstructionBuilder(catalog).build()
 
 
 class OpenAISkillRunner:
@@ -635,3 +657,9 @@ class OpenAISkillRunner:
                 for call in calls
             ]
         return result
+
+
+__all__ = [
+    "OpenAISkillRunner", "Skill", "SkillCatalog", "SkillInstructionBuilder",
+    "SkillNotFoundError", "build_skills_developer_instructions",
+]

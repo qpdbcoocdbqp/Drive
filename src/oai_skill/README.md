@@ -8,7 +8,7 @@ This FastAPI server provides:
 - Local and OpenAI LLM support
 - A Gradio UI with an execution trace
 
-The ASGI entry point is `oai_skill.api.app:app`.
+The ASGI entry point is `oai_skill.server.api:app`.
 
 ## Architecture
 
@@ -93,12 +93,18 @@ Change them before deploying the service outside your machine.
 | `APP_MODEL` | Model name | `sonnet` |
 | `APP_LLM_BASE_URL` | Local LLM Responses API | `http://host.docker.internal:19001/v1` |
 | `APP_LLM_API_KEY` | Local LLM API key | Empty |
+| `APP_SANDBOX_MODE` | Codex sandbox (`danger-full-access` inside the hardened Docker container) | `read-only` |
 | `OPENAI_API_KEY` | OpenAI API key | Empty |
 | `APP_TURN_TIMEOUT_SECONDS` | Turn timeout | `120` |
 | `APP_MAX_CONCURRENCY` | Maximum active turns | `4` |
 | `APP_QUEUE_MAX_SIZE` | Gradio queue size | `32` |
 
 A local LLM must support the OpenAI Responses API, streaming, and tool calls.
+
+The Compose deployment sets `APP_SANDBOX_MODE=danger-full-access` because Docker
+already provides the security boundary (`read_only`, dropped capabilities, and
+explicit volumes). Local non-container execution keeps the safer `read-only`
+default.
 
 To use OpenAI:
 
@@ -114,7 +120,7 @@ export OPENAI_API_KEY=<your-api-key>
 python -m pip install -r src/oai_skill/deployment/requirements.txt
 
 PYTHONPATH=src python -m uvicorn \
-  oai_skill.api.app:app \
+  oai_skill.server.api:app \
   --host 0.0.0.0 \
   --port 8080
 ```

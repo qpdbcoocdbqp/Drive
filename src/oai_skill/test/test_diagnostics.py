@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.oai_skill.codex_wrap import (
+from src.oai_skill.utils.diagnostics import (
     assert_no_skill_mcp_called,
     assert_skill_mcp_called,
 )

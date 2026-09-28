@@ -1,5 +1,7 @@
 from openai import OpenAI
-from ..skills.runner import OpenAISkillRunner, SkillCatalog
+"""Example using the consolidated skills module."""
+
+from ..skills.skills import OpenAISkillRunner, SkillCatalog
 
 
 skills_dir = "./dev-sepia"

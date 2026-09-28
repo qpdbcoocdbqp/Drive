@@ -8,7 +8,7 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters, stdio_client
 from pydantic import AnyUrl
 
-from src.oai_skill.skill_mcp_server import (
+from src.oai_skill.server.mcp import (
     configure_skill_roots,
     skill_files,
     skill_list,
@@ -77,7 +77,9 @@ class SkillMcpTransportTests(unittest.IsolatedAsyncioTestCase):
                 encoding="utf-8",
             )
 
-            server_path = Path(__file__).with_name("skill_mcp_server.py").resolve()
+            server_path = (
+                Path(__file__).resolve().parents[1] / "server" / "mcp.py"
+            )
             parameters = StdioServerParameters(
                 command=sys.executable,
                 args=[str(server_path), "--root", str(root)],
