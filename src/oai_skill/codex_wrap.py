@@ -1,108 +1,85 @@
-import os
-import json
-from openai_codex import Codex, CodexConfig, SkillInput, TextInput
+"""Compatibility ASGI entry point for the reorganized API server.
 
-
-config = CodexConfig(
-    config_overrides=(
-        "model_provider=local",
-        "model_providers.local.name=local",
-        "model_providers.local.base_url=http://localhost:19001/v1",
-        "model_providers.local.wire_api=responses",
-        "approval_policy=never",
-        "sandbox_mode=workspace-write",
-        # "skills.directories=['./.agents/skills']",
-    )
-)
-
-with Codex(config=config) as codex:
-    skills_response = codex._client._request_raw("skills/list", {})
-    print("\n--- Codex Skills (skills/list) ---")
-    print(json.dumps(skills_response, indent=2, ensure_ascii=False))
-
-# read file test
-with Codex(config=config) as codex:
-    thread = codex.thread_start(model="sonnet", model_provider="local", cwd=os.getcwd())
-    result = thread.run("Explain this repository in three bullets.")
-    print(result.final_response)
-    # thread_info = thread.read(include_turns=True)
-
-# if thread_info.thread.turns:
-#     for i, turn in enumerate(thread_info.thread.turns):
-#         print(f"--- Turn {i+1} ---")
-#         print("Status:", turn.status)
-#         print("Items / Input / Output:", turn)
-
-# interpreter test
-with Codex(config=config) as codex:
-    thread = codex.thread_start(model="sonnet", model_provider="local", cwd=os.getcwd())
-    result = thread.run("What time is it in Taipie?")
-    print(result.final_response)
-    # thread_info = thread.read(include_turns=True)
-
-template = """
-# Cover letter
-
-[Your Name]
-
-[Your Phone Number] | [Your Email] | [Your LinkedIn Profile] | [Your Portfolio/Website]
-
-[Date]
-
-[Hiring Manager's Name or "Hiring Team"]
-
-[Hiring Manager's Title, e.g., Recruiting Manager]
-
-[Company Name]
-
-[Company Address]
-
-Dear [Hiring Manager's Name or "Hiring Manager" / "Selection Committee"],
-
-[Opening Paragraph: State the position & express enthusiasm]
-
-I am writing to express my strong interest in the [Job Title] position at [Company Name], as advertised on [Where you found the job, e.g., LinkedIn / company career page]. With my background in [Your Field/Industry] and expertise in [1–2 Key Skills relevant to the role], I am excited about the opportunity to contribute to [Company Name]'s team and help drive [a key goal or project of the company].
-
-[Body Paragraph 1: Highlight key achievements & core competency]
-
-Throughout my experience as a [Your Current or Recent Job Title] at [Current/Previous Company], I have developed strong skills in [Skill 1, Skill 2, and Skill 3]. In my recent role, I successfully [Action verb + major accomplishment with quantifiable results, e.g., increased organic web traffic by 35% in six months]. Furthermore, I have a proven track record of [Another relevant skill/achievement, e.g., managing cross-functional teams to deliver projects on time], which prepares me to excel in the responsibilities required for this role.
-
-[Body Paragraph 2: Connect your value to the company’s needs]
-
-What particularly draws me to [Company Name] is your commitment to [Mention a specific company value, project, product, or recent achievement]. My proficiency in [Specific tool, technology, or methodology] aligns directly with your team's current focus on [Role responsibility mentioned in job description]. I am confident that my problem-solving abilities and [Soft skill, e.g., proactive communication style] will allow me to make an immediate, positive impact on your team.
-
-[Closing Paragraph: Call to action & thank you]
-
-Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience and skills align with the needs of [Company Name]. Please find my resume attached for your review, and feel free to contact me at [Your Phone Number] or [Your Email Address] to arrange an interview.
-
-Sincerely,
-
-[Your Signature]
-
-[Your Printed Name]
+Prefer ``oai_skill.api.app:app`` for new deployments.
 """
 
+from __future__ import annotations
 
-# skill test
-with Codex(config=config) as codex:
-    thread = codex.thread_start(model="sonnet", model_provider="local", cwd=os.getcwd())
-    prompt = f"""Use the supplied `sepia` skill to refactor this cover letter.
+import json
+import os
 
-Follow the skill's routing table and apply the `refactor` operation, preserving
-structure, intent, and all placeholders. Do not invent facts. Do not run
-`sepia` as a shell or PowerShell command; the skill is supplied by the Codex
-runtime as a typed skill input.
+import uvicorn
 
-Cover letter:
-{template}"""
-    result = thread.run([
-        SkillInput(
-            name="sepia",
-            path=os.path.abspath(os.path.join(os.getcwd(), ".agents", "skills", "sepia", "SKILL.md")),
-        ),
-        TextInput(text=prompt),
-    ])
-    print(result.final_response)
-    thread_info = thread.read(include_turns=True)
-    print("\n--- Skill thread turns/events ---")
-    print(thread_info)
+try:
+    from .api.app import app, create_app
+except ImportError:  # Executed directly from the repository root.
+    from src.oai_skill.api.app import app, create_app
+
+__all__ = [
+    "app",
+    "create_app",
+    "assert_skill_mcp_called",
+    "assert_no_skill_mcp_called",
+]
+
+
+def assert_skill_mcp_called(function_calls, skill_name):
+    """Backward-compatible audit helper retained for existing callers."""
+    matching = [
+        call
+        for call in function_calls
+        if (
+            call["name"].endswith("skill_view")
+            and call["arguments"].get("name") == skill_name
+        )
+        or (
+            call["name"] == "read_mcp_resource"
+            and call["arguments"].get("server") == "skill_manager"
+            and call["arguments"].get("uri", "").startswith(
+                f"skill://{skill_name}"
+            )
+        )
+    ]
+    fake_shell_calls = [
+        call
+        for call in function_calls
+        if call["name"] in {"shell_command", "exec_command"}
+        and f"{skill_name}." in json.dumps(call["arguments"], ensure_ascii=False)
+    ]
+    if fake_shell_calls:
+        raise AssertionError(
+            f"Model treated {skill_name} as a shell command: {fake_shell_calls}"
+        )
+    if not matching:
+        names = [call["name"] for call in function_calls]
+        raise AssertionError(
+            f"No MCP skill load found for {skill_name!r}; calls={names}"
+        )
+
+
+def assert_no_skill_mcp_called(function_calls):
+    """Backward-compatible audit helper retained for existing callers."""
+    unexpected = [
+        call
+        for call in function_calls
+        if call["name"].endswith("skill_view")
+        or (
+            call["name"] == "read_mcp_resource"
+            and call["arguments"].get("server") == "skill_manager"
+            and call["arguments"].get("uri", "").startswith("skill://")
+        )
+    ]
+    if unexpected:
+        raise AssertionError(f"Unexpected MCP skill calls: {unexpected}")
+
+
+def main() -> None:
+    uvicorn.run(
+        app,
+        host=os.getenv("APP_HOST", "0.0.0.0"),
+        port=int(os.getenv("APP_PORT", "8080")),
+    )
+
+
+if __name__ == "__main__":
+    main()

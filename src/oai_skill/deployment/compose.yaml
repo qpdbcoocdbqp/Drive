@@ -1,0 +1,52 @@
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: src/oai_skill/deployment/Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      APP_LLM_MODE: "${APP_LLM_MODE:-local}"
+      APP_MODEL: "${APP_MODEL:-sonnet}"
+      APP_LLM_BASE_URL: "${APP_LLM_BASE_URL:-http://host.docker.internal:19001/v1}"
+      APP_LLM_API_KEY: "${APP_LLM_API_KEY:-}"
+      APP_LOCAL_PROVIDER_ID: "${APP_LOCAL_PROVIDER_ID:-local-runtime}"
+      APP_SKILL_ROOTS: /skills
+      APP_WORKSPACE: /workspace
+      APP_CODEX_HOME: /var/lib/codex
+      APP_TURN_TIMEOUT_SECONDS: "${APP_TURN_TIMEOUT_SECONDS:-120}"
+      APP_INTERRUPT_GRACE_SECONDS: "${APP_INTERRUPT_GRACE_SECONDS:-10}"
+      APP_MAX_CONCURRENCY: "${APP_MAX_CONCURRENCY:-4}"
+      APP_QUEUE_MAX_SIZE: "${APP_QUEUE_MAX_SIZE:-32}"
+      APP_API_TOKEN: "${APP_API_TOKEN:-}"
+      APP_GRADIO_USERNAME: "${APP_GRADIO_USERNAME:-}"
+      APP_GRADIO_PASSWORD: "${APP_GRADIO_PASSWORD:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GRADIO_ANALYTICS_ENABLED: "False"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../../.agents/skills:/skills:ro
+      - codex-data:/var/lib/codex
+      - app-workspace:/workspace
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+
+volumes:
+  codex-data:
+  app-workspace:

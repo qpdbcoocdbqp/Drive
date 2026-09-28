@@ -1,5 +1,5 @@
 from openai import OpenAI
-from src.oai_skill.skill_runner import OpenAISkillRunner, SkillCatalog
+from ..skills.runner import OpenAISkillRunner, SkillCatalog
 
 
 skills_dir = "./dev-sepia"

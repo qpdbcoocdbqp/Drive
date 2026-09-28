@@ -1,0 +1,9 @@
+*
+!src/
+!src/oai_skill/
+!src/oai_skill/**
+src/oai_skill/__pycache__/
+src/oai_skill/**/__pycache__/
+src/oai_skill/test_*.py
+src/oai_skill/tests/
+*.pyc

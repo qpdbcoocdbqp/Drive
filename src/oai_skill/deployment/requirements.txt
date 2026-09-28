@@ -1,0 +1,7 @@
+fastapi==0.135.2
+gradio==6.14.0
+mcp==1.26.0
+openai-codex==0.147.0
+plotly>=6,<7
+pydantic-settings==2.15.0
+uvicorn[standard]==0.42.0
