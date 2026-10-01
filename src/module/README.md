@@ -26,6 +26,9 @@ python -m src.module.telegram login --phone <your-phone-number>
 # show broadcast channel only
 python -m src.module.telegram list
 
+# include ordinary Telegram groups
+python -m src.module.telegram list --all-channel
+
 # > {
 # >   "channels": [
 # >     {
@@ -41,6 +44,9 @@ python -m src.module.telegram list
 # read messages
 # --mark-read: clear notifications
 python -m src.module.telegram read "Gooaye" --limit 4 --mark-read
+
+# read an ordinary group (only enabled explicitly)
+python -m src.module.telegram read "-1003366841830" --all-channel
 
 # > ...
 # >   "messages": [

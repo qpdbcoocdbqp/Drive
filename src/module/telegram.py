@@ -19,6 +19,7 @@ First login (interactive OTP/2FA), then use the JSON CLI::
     python src/module/telegram.py login
     python src/module/telegram.py list
     python src/module/telegram.py read @joined_channel --limit 20
+    python src/module/telegram.py read my_group --all-channel
     python src/module/telegram.py search @joined_channel "keyword"
 
 The MCP server is intended for an LLM tool client.  Telegram's current Content
@@ -171,15 +172,17 @@ def parse_allowed_channels(values: Iterable[str]) -> frozenset[str]:
 
 
 class TelegramChannelReader(AbstractAsyncContextManager["TelegramChannelReader"]):
-    """A read-only user client restricted to already-joined broadcast channels."""
+    """A read-only user client restricted to already-joined Telegram dialogs."""
 
     def __init__(
         self,
         settings: TelegramSettings,
         *,
         allowed_channels: Iterable[str] | None = None,
+        all_channel: bool = False,
     ) -> None:
         self.settings = settings
+        self.all_channel = all_channel
         self.allowed_channels = (
             parse_allowed_channels(allowed_channels) if allowed_channels is not None else None
         )
@@ -248,7 +251,9 @@ class TelegramChannelReader(AbstractAsyncContextManager["TelegramChannelReader"]
     async def _joined_channels(self) -> list[Any]:
         dialogs: list[Any] = []
         async for dialog in self.client.iter_dialogs(ignore_migrated=True):
-            if self._is_broadcast_channel(dialog) and self._is_allowed(dialog.entity):
+            is_channel = self._is_broadcast_channel(dialog)
+            is_group = bool(getattr(dialog, "is_group", False))
+            if (is_channel or (self.all_channel and is_group)) and self._is_allowed(dialog.entity):
                 dialogs.append(dialog)
         return dialogs
 
@@ -531,14 +536,20 @@ def _build_parser() -> argparse.ArgumentParser:
     login_parser = subparsers.add_parser("login", help="Interactively log in with OTP/2FA and create a session")
     login_parser.add_argument("--phone", help="Phone number with country code; Telethon prompts if omitted")
 
-    list_parser = subparsers.add_parser("list", help="List joined broadcast channels")
+    list_parser = subparsers.add_parser("list", help="List joined channels and groups")
     list_parser.add_argument("--limit", type=int, default=100)
+    list_parser.add_argument(
+        "--all-channel", action="store_true", help="Include ordinary groups, not only broadcast channels"
+    )
 
     read_parser = subparsers.add_parser("read", help="Read messages from a joined channel")
     read_parser.add_argument("channel", help="@username, t.me URL, numeric ID, or exact title")
     read_parser.add_argument("--limit", type=int, default=20)
     read_parser.add_argument("--before-id", type=int, help="Read older messages before this message ID")
     read_parser.add_argument("--after-id", type=int, help="Read newer messages after this message ID")
+    read_parser.add_argument(
+        "--all-channel", action="store_true", help="Allow reading an ordinary group"
+    )
     read_parser.add_argument(
         "--mark-read",
         action="store_true",
@@ -550,6 +561,9 @@ def _build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("query")
     search_parser.add_argument("--limit", type=int, default=20)
     search_parser.add_argument("--before-id", type=int)
+    search_parser.add_argument(
+        "--all-channel", action="store_true", help="Allow searching an ordinary group"
+    )
 
     serve_parser = subparsers.add_parser("serve", help="Start an MCP stdio server for LLM access")
     serve_parser.add_argument(
@@ -571,10 +585,10 @@ async def _run_async_command(args: argparse.Namespace, settings: TelegramSetting
     if args.command == "login":
         return await login(settings, phone=args.phone)
     if args.command == "list":
-        async with TelegramChannelReader(settings) as reader:
+        async with TelegramChannelReader(settings, all_channel=args.all_channel) as reader:
             return await reader.list_joined_channels(limit=args.limit)
     if args.command == "read":
-        async with TelegramChannelReader(settings) as reader:
+        async with TelegramChannelReader(settings, all_channel=args.all_channel) as reader:
             return await reader.read_messages(
                 args.channel,
                 limit=args.limit,
@@ -583,7 +597,7 @@ async def _run_async_command(args: argparse.Namespace, settings: TelegramSetting
                 mark_read=args.mark_read,
             )
     if args.command == "search":
-        async with TelegramChannelReader(settings) as reader:
+        async with TelegramChannelReader(settings, all_channel=args.all_channel) as reader:
             return await reader.read_messages(
                 args.channel,
                 limit=args.limit,
