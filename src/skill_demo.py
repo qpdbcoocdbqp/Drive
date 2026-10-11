@@ -1,9 +1,3 @@
-"""Example: review a text with the `sepia` skill (de-AI writing).
-
-Run from the repo root:
-    python -m src.acc_skill.client
-"""
-
 from src.module.skills import SkillsRunner
 
 TEXT = """\
@@ -15,14 +9,13 @@ it's a paradigm shift.
 """
 
 runner = SkillsRunner(
-    ["dev-skills"],  # skill 資料夾,或包含多個 skill 的資料夾
+    ["dev-skills"],
     base_url="http://localhost:19001/v1",
     model="sonnet",
-    workdir=".",  # 工具執行與讀寫檔案的目錄
+    workdir=".",
     max_turns=30,
 )
 
-# skill="sepia" 預先載入 skill;"review" 只診斷、不改寫。
 result = runner.run(
     f"Operation: review. This is a release note. Diagnose it and stop:\n\n{TEXT}",
     skill="sepia",
