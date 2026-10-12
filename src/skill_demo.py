@@ -17,8 +17,7 @@ runner = SkillsRunner(
 )
 
 result = runner.run(
-    f"Operation: review. This is a release note. Diagnose it and stop:\n\n{TEXT}",
-    skill="sepia",
+    f"/sepia review. This is a release note. Diagnose it and stop:\n\n{TEXT}",
 )
 
 print(f"finished={result.finished} turns={result.turns}")

@@ -75,7 +75,8 @@ class FakeClient:
         return self.replies.pop(0)
 
 
-def test_lifecycle_with_fake_client(skills_dir: Path, tmp_path: Path):
+@pytest.mark.parametrize("prompt", ["checksum please", "/checksum-report checksum please"])
+def test_lifecycle_with_fake_client(skills_dir: Path, tmp_path: Path, prompt: str):
     data = tmp_path / "data.bin"
     data.write_bytes(b"hello")
     digest = hashlib.sha256(b"hello").hexdigest()
@@ -86,14 +87,62 @@ def test_lifecycle_with_fake_client(skills_dir: Path, tmp_path: Path):
         _reply(calls=[("nope", "{}"), ("read_file", "not json")]),  # errors must not crash the loop
         _reply(content=digest),
     ])
+    if prompt.startswith("/"):
+        client.replies.pop(0)  # The runner preloads the skill before the first LLM call.
     runner = SkillsRunner(skills_dir, client=client, workdir=tmp_path)
-    result = runner.run("checksum please")
+    result = runner.run(prompt)
     assert result.finished and result.content == digest
     assert [s["name"] for s in result.steps] == ["load_skill", "run_command", "nope", "read_file"]
     assert digest in result.steps[1]["result"]
     assert result.steps[2]["result"].startswith("error: unknown tool")
     assert result.steps[3]["result"].startswith("error: invalid tool arguments")
     assert "checksum-report:" in client.seen[0][0]["content"]
+
+
+@pytest.mark.parametrize("prompt, skill", [
+    ("/checksum-report checksum please", None),
+    ("/checksum-report\nchecksum please", None),
+    (" \t/checksum-report\tchecksum please  \n", None),
+    ("/checksum-report checksum please", "checksum-report"),
+    ("checksum please", "checksum-report"),
+])
+def test_skill_preload(skills_dir: Path, tmp_path: Path, prompt: str, skill: str | None):
+    client = FakeClient([_reply(content="done")])
+    runner = SkillsRunner(skills_dir, client=client, workdir=tmp_path)
+    result = runner.run(prompt, skill=skill)
+    assert result.finished and result.content == "done"
+    assert len(result.steps) == 1
+    assert result.steps[0]["name"] == "load_skill"
+    assert result.steps[0]["arguments"] == {"name": "checksum-report"}
+    messages = client.seen[0]
+    assert messages[1] == {"role": "user", "content": "checksum please"}
+    assert messages[2]["tool_calls"][0]["function"]["name"] == "load_skill"
+    assert messages[3]["tool_call_id"] == messages[2]["tool_calls"][0]["id"]
+    assert "# Checksum report" in messages[3]["content"]
+
+
+@pytest.mark.parametrize("prompt, skill, error", [
+    ("/missing task", None, "unknown skill 'missing'. Available: checksum-report, unrelated"),
+    ("/checksum task", None, "unknown skill 'checksum'"),
+    ("/checksum-report task", "unrelated", "conflicts with /checksum-report"),
+    ("/checksum-report", None, "provide a task after /checksum-report"),
+    ("/checksum-report \n\t", None, "provide a task after /checksum-report"),
+])
+def test_invalid_skill_command(skills_dir: Path, tmp_path: Path, prompt: str, skill: str | None, error: str):
+    client = FakeClient([])
+    runner = SkillsRunner(skills_dir, client=client, workdir=tmp_path)
+    with pytest.raises(ValueError) as exc:
+        runner.run(prompt, skill=skill)
+    assert error in str(exc.value)
+    assert client.seen == []
+
+
+@pytest.mark.parametrize("prompt", ["checksum please", "  checksum please  ", "Explain /checksum-report"])
+def test_plain_prompt_unchanged(skills_dir: Path, tmp_path: Path, prompt: str):
+    client = FakeClient([_reply(content="done")])
+    result = SkillsRunner(skills_dir, client=client, workdir=tmp_path).run(prompt)
+    assert result.finished and result.steps == []
+    assert client.seen[0][1] == {"role": "user", "content": prompt}
 
 
 def test_max_turns(skills_dir: Path, tmp_path: Path):
@@ -126,7 +175,8 @@ def test_acceptance_checksum_goal(skills_dir: Path, tmp_path: Path, attempt: int
     digest = hashlib.sha256(payload).hexdigest()
 
     runner = SkillsRunner(skills_dir, base_url=BASE_URL, model=MODEL, workdir=work, max_turns=12)
-    result = runner.run("Give me a checksum report for input.txt.")
+    prompt = "Give me a checksum report for input.txt."
+    result = runner.run(f"/checksum-report {prompt}" if attempt == 0 else prompt)
 
     print(f"\n=== attempt {attempt} | model={MODEL} | skills={list(runner.skills)} ===")
     for i, step in enumerate(result.steps, 1):

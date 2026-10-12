@@ -12,8 +12,12 @@ uv pip install -U openai pyyaml pytest
 
 * [skill_demo](skill_demo.py)
 
+    ```bash
+    python -m src.skill_demo
+    ```
+
     ```python
-    from acc_client import SkillsRunner
+    from src.module.skills import SkillsRunner
 
     runner = SkillsRunner(
         ["path/to/skills", "path/to/one-skill"],   # A skill directory or a directory containing multiple skills
@@ -30,9 +34,36 @@ uv pip install -U openai pyyaml pytest
 
 - Recursively searches the supplied paths for `SKILL.md` files and reads `name` and `description` from their frontmatter.
 - Workflow: the system prompt lists only skill names and descriptions → the model calls `load_skill` to retrieve the full content → it uses `read_file` / `write_file` / `run_command` to carry out the task → a response without tool calls becomes the final answer.
-- `run(prompt, skill="name")` can preload a specific skill.
+- `run(prompt, skill="name")` or `run("/name task")` can preload a specific skill, e.g. `run("/sepia review\nYour text here")`.
 - Other parameters: `max_turns=20`, `command_timeout=120`, `temperature=0.0`, and `verbose=True` (prints tool calls to stderr).
 - `run_command` executes shell commands directly on the local machine without a sandbox. Only load trusted skills.
+
+### LLM and skill execution flow
+
+The LLM selects skills and tools. SkillsRunner executes the calls and returns their results to the LLM.
+
+```mermaid
+flowchart TD
+    Init["Load skill catalog"] --> Slash{"Prompt starts with /name?"}
+    Slash -->|Yes| Valid{"Known skill, task provided,<br/>and no conflict with skill argument?"}
+    Valid -->|No| Invalid["Raise ValueError"]
+    Valid -->|Yes| Parse["Set skill and remove /name from prompt"]
+    Parse --> Run
+    Slash -->|No| Run["Prepare messages<br/>Preload skill if specified"]
+    Run --> Budget{"Turns remaining?"}
+    Budget -->|No| Unfinished["Return: finished = false"]
+    Budget -->|Yes| LLM["Call LLM with messages and tools"]
+    LLM --> Calls{"Tool calls?"}
+    Calls -->|Yes| Tools["Execute calls in order:<br/>load_skill / read_file / write_file / run_command"]
+    Tools --> Results["Record steps and append tool results or errors"]
+    Results --> Budget
+    Calls -->|No| Remind{"Unread references?<br/>First reminder and turns remaining?"}
+    Remind -->|Yes| Nudge["Ask LLM to check required references"]
+    Nudge --> Budget
+    Remind -->|No| Finished["Return final answer: finished = true"]
+```
+
+`load_skill` returns instructions and bundled-file names. The LLM then requests any needed file reads or commands. Before finalizing, the runner may send one reminder to check unread references.
 
 ### Tests
 

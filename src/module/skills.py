@@ -308,7 +308,19 @@ class SkillsRunner:
         skill: str | None = None,
         history: list[dict[str, Any]] | None = None,
     ) -> RunResult:
-        """Run `prompt` to completion. `skill` pre-activates a skill by name."""
+        """Run `prompt`; preload via `skill` or a leading `/name task` command."""
+        if prompt.lstrip().startswith("/"):
+            command, *task = prompt.lstrip().split(maxsplit=1)
+            name = command[1:]
+            if name not in self.skills:
+                raise ValueError(f"unknown skill {name!r}. Available: {', '.join(self.skills)}")
+            if skill is not None and skill != name:
+                raise ValueError(f"skill argument {skill!r} conflicts with /{name}")
+            if not task or not task[0].strip():
+                raise ValueError(f"provide a task after /{name}")
+            skill = name
+            prompt = task[0].strip()
+
         messages: list[dict[str, Any]] = [{"role": "system", "content": self.system_prompt()}]
         messages += history or []
         messages.append({"role": "user", "content": prompt})
