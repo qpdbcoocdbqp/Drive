@@ -1,0 +1,9 @@
+You are the inventory controller preparing the month-end stock report.
+
+inventory.csv in this folder lists every stock line: sku, name, warehouse, qty (units on hand),
+unit_cost (USD per unit) and reorder_point (units).
+
+Write output/report.md containing:
+1. The inventory value (qty x unit_cost) for each warehouse and the overall total, in USD to two decimals.
+2. The SKUs whose qty is strictly below their reorder_point, sorted by SKU.
+3. The single stock line with the highest inventory value: its SKU, name and value.

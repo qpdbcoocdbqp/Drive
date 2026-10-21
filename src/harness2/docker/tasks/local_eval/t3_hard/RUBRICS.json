@@ -1,0 +1,58 @@
+{
+  "rubrics": [
+    {
+      "rubric": "Is the total Q3 net commission across all reps 16650.39?",
+      "weight": 8,
+      "criterion": [
+        "Sum of net_commission over all rows is 16650.39 (within 0.05 for rounding)"
+      ]
+    },
+    {
+      "rubric": "Does output/commissions.csv contain the correct gross, clawback and net per rep and month?",
+      "weight": 14,
+      "criterion": [
+        "Columns rep_id,month,gross_commission,clawback,net_commission sorted by rep then month",
+        "R1 2026-07: gross 200.00, clawback 0.00, net 200.00",
+        "R1 2026-08: gross 1760.74, clawback 0.00, net 1760.74",
+        "R1 2026-09: gross 841.01, clawback 0.00, net 841.01",
+        "R1 2026-10: gross 0.00, clawback 50.19, net -50.19",
+        "R2 2026-08: gross 951.00, clawback 0.00, net 951.00",
+        "R2 2026-09: gross 3787.41, clawback 0.00, net 3787.41",
+        "R3 2026-07: gross 1602.88, clawback 172.50, net 1430.38",
+        "R3 2026-08: gross 2369.00, clawback 0.00, net 2369.00",
+        "R3 2026-09: gross 1911.03, clawback 0.00, net 1911.03",
+        "R3 2026-11: gross 0.00, clawback 357.00, net -357.00",
+        "R4 2026-07: gross 702.00, clawback 0.00, net 702.00",
+        "R4 2026-08: gross 1707.00, clawback 0.00, net 1707.00",
+        "R4 2026-09: gross 1398.00, clawback 0.00, net 1398.00"
+      ]
+    },
+    {
+      "rubric": "Are the policy edge cases applied?",
+      "weight": 8,
+      "criterion": [
+        "Marginal tiers: a deal crossing the monthly threshold is split between the two rates",
+        "R3 is paid on the Junior plan before 2026-08-11 and on the Senior plan from 2026-08-11",
+        "Junior upper tier is 8% for deals closed on or after 2026-08-15 (memo), 7% before",
+        "Split deals credit split_pct to the split rep and the remainder to the owner"
+      ]
+    },
+    {
+      "rubric": "Does output/discrepancies.csv list exactly the payout discrepancies?",
+      "weight": 10,
+      "criterion": [
+        "R1 2026-08: computed 1760.74, paid 1723.24, difference -37.50",
+        "R3 2026-08: computed 2369.00, paid 2489.00, difference 120.00",
+        "R4 2026-09: computed 1398.00, paid 0.00, difference -1398.00",
+        "No other rows are listed"
+      ]
+    },
+    {
+      "rubric": "Does the audit memo identify refunds without clawback?",
+      "weight": 4,
+      "criterion": [
+        "Names D-303, D-314 as refunded more than 60 days after close, so no clawback"
+      ]
+    }
+  ]
+}

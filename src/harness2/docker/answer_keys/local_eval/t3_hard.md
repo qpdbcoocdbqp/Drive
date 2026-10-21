@@ -1,0 +1,21 @@
+# t3_hard answer key
+- R1 2026-07: gross 200.00, clawback 0.00, net 200.00
+- R1 2026-08: gross 1760.74, clawback 0.00, net 1760.74
+- R1 2026-09: gross 841.01, clawback 0.00, net 841.01
+- R1 2026-10: gross 0.00, clawback 50.19, net -50.19
+- R2 2026-08: gross 951.00, clawback 0.00, net 951.00
+- R2 2026-09: gross 3787.41, clawback 0.00, net 3787.41
+- R3 2026-07: gross 1602.88, clawback 172.50, net 1430.38
+- R3 2026-08: gross 2369.00, clawback 0.00, net 2369.00
+- R3 2026-09: gross 1911.03, clawback 0.00, net 1911.03
+- R3 2026-11: gross 0.00, clawback 357.00, net -357.00
+- R4 2026-07: gross 702.00, clawback 0.00, net 702.00
+- R4 2026-08: gross 1707.00, clawback 0.00, net 1707.00
+- R4 2026-09: gross 1398.00, clawback 0.00, net 1398.00
+- Total net: 16650.39
+- Discrepancies:
+  - R1 2026-08: computed 1760.74, paid 1723.24, difference -37.50
+  - R3 2026-08: computed 2369.00, paid 2489.00, difference 120.00
+  - R4 2026-09: computed 1398.00, paid 0.00, difference -1398.00
+- Clawbacks: D-312 2026-07 172.50; D-303 outside 60 days 0.00; D-326 2026-10 50.19; D-330 2026-11 357.00; D-314 outside 60 days 0.00
+- Traps: marginal tiers, mid-month promotion (R3 2026-08-11), memo 8% from 2026-08-15, splits, 60-day window, clawback month = return month, unpaid month

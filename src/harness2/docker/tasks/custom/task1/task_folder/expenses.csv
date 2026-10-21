@@ -1,0 +1,13 @@
+date,vendor,category,amount
+2026-09-01,CloudHost,Infrastructure,1200.00
+2026-09-03,OfficeMart,Supplies,85.40
+2026-09-05,AirFly,Travel,640.00
+2026-09-08,OfficeMart,Supplies,-20.00
+2026-09-10,CloudHost,Infrastructure,300.00
+2026-09-12,CafeBean,Meals,45.60
+2026-09-12,CafeBean,Meals,45.60
+2026-09-15,AirFly,Travel,-640.00
+2026-09-18,HotelStay,Travel,410.00
+2026-09-22,CloudHost,Infrastructure,-150.00
+2026-09-25,PrintCo,Supplies,132.00
+2026-09-28,CafeBean,Meals,38.20
