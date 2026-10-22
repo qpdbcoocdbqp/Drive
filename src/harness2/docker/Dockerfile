@@ -3,6 +3,7 @@
 
 FROM node:20-bookworm-slim AS node
 FROM ghcr.io/astral-sh/uv:0.8.15 AS uv
+FROM docker:29.8.2-cli AS docker
 
 FROM python:3.12-slim-bookworm
 
@@ -49,7 +50,12 @@ RUN git clone "$HARNESS2_REPO" . \
  && git checkout --detach "$HARNESS2_REF" \
  && uv venv --python /usr/local/bin/python3.12 /opt/venv \
  && uv pip install --python /opt/venv/bin/python -e ".[${HARNESS2_EXTRAS}]" \
+ && uv pip install --python /opt/venv/bin/python "openai>=1.66" \
  && mkdir -p runs /home/harness/.config/opencode /home/harness/.config/gcloud
+
+# Docker CLI: with HARNESS2_SANDBOX=docker, harness2/sandbox.py starts one executor container
+# per attempt through the host engine's socket (compose.yaml).
+COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
 
 ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:$PATH

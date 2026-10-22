@@ -1,0 +1,309 @@
+diff --git a/harness2/benchmarks/jb_opencode_runner.py b/harness2/benchmarks/jb_opencode_runner.py
+index 1b35190..6c59dbb 100644
+--- a/harness2/benchmarks/jb_opencode_runner.py
++++ b/harness2/benchmarks/jb_opencode_runner.py
+@@ -19,13 +19,14 @@ from __future__ import annotations
+ import json
+ import os
+ import shutil
+-import subprocess
+ import sys
+ import tempfile
+ from dataclasses import dataclass
+ from datetime import datetime
+ from pathlib import Path
+ 
++from harness2 import sandbox
++
+ JOBBENCH = Path(__file__).resolve().parents[1]
+ TEMP_BASE = Path("/tmp/hevo_ws")
+ TRAJ_DIR_NAME = "model_traj"
+@@ -193,13 +194,16 @@ def _attempt(
+     handle, raw = tempfile.mkstemp(prefix=f".{task_name}_a{attempt}.stdout.", dir=traj_file.parent)
+     os.close(handle)
+     with open(raw, "w", encoding="utf-8") as out, log_file.open("a", encoding="utf-8") as err:
+-        code = subprocess.run(
++        # HARNESS2_SANDBOX=docker runs this in a throwaway container (harness2/sandbox.py).
++        code = sandbox.run(
+             _command(cfg, workspace, prompt, title),
++            workspace=workspace,
+             cwd=cfg.opencode_dir,
+             env={**os.environ, "OPENCODE_PERMISSION": _permission(workspace)},
+             stdout=out,
+             stderr=err,
+-        ).returncode
++            timeout=int(cfg.timeout_per_task) + 60,
++        )
+     with open(raw, encoding="utf-8", errors="replace") as src:
+         traj_file.write_text(
+             "".join(ln for ln in src if ln.startswith(EVENT_PREFIX)), encoding="utf-8"
+diff --git a/harness2/sandbox.py b/harness2/sandbox.py
+new file mode 100644
+index 0000000..0913033
+--- /dev/null
++++ b/harness2/sandbox.py
+@@ -0,0 +1,264 @@
++"""Run an agent command on this host or in a throwaway Docker sandbox.
++
++HARNESS2_SANDBOX selects the backend:
++
++    local    (default) a subprocess on this host, as upstream runs it
++    docker   one container per call: the workspace is copied in, the command runs on an
++             internal network with only the dependency subpaths it needs mounted read-only,
++             and the workspace is copied back when it exits
++
++The container sees the workspace at its host path, so prompts that name absolute paths still
++hold. Only OPENCODE_* variables and the provider key are forwarded into it. The docker backend
++talks to whatever engine the `docker` CLI reaches (compose.yaml mounts the host socket); paths
++never cross that boundary, files do (`docker cp`), so it also works from inside a container.
++"""
++
++from __future__ import annotations
++
++import os
++import shutil
++import subprocess
++import sys
++import tarfile
++import tempfile
++import time
++import uuid
++from dataclasses import dataclass
++from pathlib import Path
++from typing import IO, Mapping, Sequence
++
++LABEL = "harness2.sandbox"
++DEADLINE_LABEL = "harness2.sandbox.deadline"
++DEFAULT_TIMEOUT = 4 * 3600
++FORWARD_ENV = ("HARNESS2_PROVIDER_API_KEY",)
++
++
++class SandboxError(RuntimeError):
++    """The sandbox could not be created, filled or emptied."""
++
++
++def _env(name: str, default: str) -> str:
++    return os.environ.get(name) or default
++
++
++@dataclass(frozen=True)
++class Settings:
++    image: str
++    network: str
++    deps_volume: str
++    deps_dir: str
++    deps: tuple[str, ...]
++    cpus: str
++    memory: str
++    pids: str
++
++    @classmethod
++    def from_env(cls) -> "Settings":
++        return cls(
++            image=_env("HARNESS2_SANDBOX_IMAGE", "harness2-sandbox:local"),
++            network=_env("HARNESS2_SANDBOX_NETWORK", "harness2-sandbox"),
++            deps_volume=_env("HARNESS2_SANDBOX_DEPS_VOLUME", "docker_deps"),
++            deps_dir=_env("HARNESS2_SANDBOX_DEPS_DIR", "/opt/harness2/dependencies"),
++            deps=tuple(_env("HARNESS2_SANDBOX_DEPS", "opencode tools").split()),
++            cpus=_env("HARNESS2_SANDBOX_CPUS", "4"),
++            memory=_env("HARNESS2_SANDBOX_MEMORY", "4g"),
++            pids=_env("HARNESS2_SANDBOX_PIDS", "512"),
++        )
++
++
++def mode() -> str:
++    m = _env("HARNESS2_SANDBOX", "local")
++    if m not in ("local", "docker"):
++        raise SandboxError(f"HARNESS2_SANDBOX must be 'local' or 'docker', got {m!r}")
++    return m
++
++
++def run(
++    argv: Sequence[str],
++    *,
++    workspace: Path,
++    cwd: Path,
++    env: Mapping[str, str],
++    stdout: IO,
++    stderr: IO,
++    timeout: int | None = None,
++) -> int:
++    """Run `argv` with `workspace` writable; the exit status, or 124 after `timeout` seconds."""
++    if mode() == "docker":
++        return _run_docker(list(argv), Path(workspace), Path(cwd), env, stdout, stderr, timeout)
++    try:
++        return subprocess.run(
++            list(argv), cwd=cwd, env=dict(env), stdout=stdout, stderr=stderr, timeout=timeout
++        ).returncode
++    except subprocess.TimeoutExpired:
++        return 124
++
++
++def _docker(*args: str, **kw) -> subprocess.CompletedProcess:
++    return subprocess.run(["docker", *args], **kw)
++
++
++def _quiet(*args: str) -> None:
++    _docker(*args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++
++
++def _run_docker(argv, workspace: Path, cwd: Path, env, stdout, stderr, timeout) -> int:
++    s = Settings.from_env()
++    workspace = workspace.resolve()
++    limit = int(timeout or DEFAULT_TIMEOUT)
++    name = f"h2sbx-{uuid.uuid4().hex[:12]}"
++    sweep()
++    # The deadline lets a later sweep() remove this container if our caller is SIGKILLed.
++    _create(s, name, argv, cwd, env, deadline=int(time.time()) + limit + 300)
++    try:
++        _copy_in(name, workspace)
++        try:
++            code = _docker(
++                "start", "--attach", name, stdout=stdout, stderr=stderr, timeout=limit
++            ).returncode
++        except subprocess.TimeoutExpired:
++            # Killing the CLI leaves the container running; stop it before reading it back.
++            _quiet("kill", name)
++            code = 124
++        _copy_out(name, workspace)
++        return code
++    finally:
++        _quiet("rm", "--force", "--volumes", name)
++
++
++def _create(s: Settings, name: str, argv, cwd: Path, env, *, deadline: int) -> None:
++    cmd = [
++        "create",
++        "--name",
++        name,
++        "--label",
++        f"{LABEL}=1",
++        "--label",
++        f"{DEADLINE_LABEL}={deadline}",
++        "--network",
++        s.network,
++        "--user",
++        f"{os.getuid()}:{os.getgid()}",
++        "--cap-drop",
++        "ALL",
++        "--security-opt",
++        "no-new-privileges",
++        "--cpus",
++        s.cpus,
++        "--memory",
++        s.memory,
++        "--pids-limit",
++        s.pids,
++        "--workdir",
++        str(cwd),
++    ]
++    for sub in s.deps:
++        cmd += [
++            "--mount",
++            f"type=volume,src={s.deps_volume},dst={s.deps_dir}/{sub},"
++            f"volume-subpath={sub},readonly",
++        ]
++    # Names only: docker reads the values from the CLI's environment, not the command line.
++    cmd += [a for k in env if k.startswith("OPENCODE_") or k in FORWARD_ENV for a in ("--env", k)]
++    r = _docker(*cmd, s.image, *argv, env=dict(env), capture_output=True, text=True)
++    if r.returncode != 0:
++        raise SandboxError(f"docker create failed: {r.stderr.strip()[-500:]}")
++
++
++def _copy_in(name: str, workspace: Path) -> None:
++    """Stream `workspace` into the container at the same path; -a keeps our uid/gid on it."""
++    p = subprocess.Popen(
++        ["docker", "cp", "--archive", "-", f"{name}:/"],
++        stdin=subprocess.PIPE,
++        stdout=subprocess.DEVNULL,
++        stderr=subprocess.PIPE,
++    )
++    try:
++        with tarfile.open(fileobj=p.stdin, mode="w|") as tar:
++            tar.add(workspace, arcname=workspace.relative_to("/").as_posix())
++    except BrokenPipeError:
++        pass
++    _, err = p.communicate()
++    if p.returncode != 0:
++        raise SandboxError(f"docker cp into {name} failed: {err.decode(errors='replace')[-500:]}")
++
++
++def _keep(member: tarfile.TarInfo, dest: str) -> tarfile.TarInfo | None:
++    """tarfile's "data" filter, skipping (not failing on) members it rejects, such as a link
++    that points outside the workspace: what comes back from a sandbox is untrusted."""
++    try:
++        return tarfile.data_filter(member, dest)
++    except tarfile.FilterError:
++        return None
++
++
++def _copy_out(name: str, workspace: Path) -> None:
++    """Replace `workspace` with the container's copy of it."""
++    with tempfile.TemporaryFile() as buf:
++        r = _docker("cp", f"{name}:{workspace}", "-", stdout=buf, stderr=subprocess.PIPE)
++        if r.returncode != 0:
++            raise SandboxError(
++                f"docker cp out of {name} failed: {r.stderr.decode(errors='replace')[-500:]}"
++            )
++        buf.seek(0)
++        staging = Path(tempfile.mkdtemp(prefix=".sandbox-out-", dir=workspace.parent))
++        try:
++            with tarfile.open(fileobj=buf, mode="r:") as tar:
++                tar.extractall(staging, filter=_keep)
++            shutil.rmtree(workspace, ignore_errors=True)
++            os.rename(staging / workspace.name, workspace)
++        finally:
++            shutil.rmtree(staging, ignore_errors=True)
++
++
++def sweep() -> int:
++    """Remove sandbox containers past their deadline, left behind by a killed caller."""
++    fmt = '{{.Names}} {{.Label "' + DEADLINE_LABEL + '"}}'
++    r = _docker(
++        "ps", "--all", "--filter", f"label={LABEL}", "--format", fmt, capture_output=True, text=True
++    )
++    if r.returncode != 0:
++        return 0
++    now = time.time()
++    rows = (ln.partition(" ") for ln in r.stdout.splitlines())
++    stale = [n for n, _, d in rows if d.strip().isdigit() and int(d) < now]
++    if stale:
++        _quiet("rm", "--force", "--volumes", *stale)
++    return len(stale)
++
++
++def _self_test() -> int:
++    """`python -m harness2.sandbox`: run probes in a sandbox and report what it can reach."""
++    probe = r"""
++p() { printf '%-34s' "$1"; shift; if "$@" >/dev/null 2>&1; then echo reachable; else echo blocked; fi; }
++echo "user $(id -u):$(id -g), model endpoint $1"
++p "model endpoint" curl -sf -m 5 "$1"
++p "internet (huggingface.co)" curl -s -m 5 https://huggingface.co
++p "internet (1.1.1.1)" curl -s -m 5 http://1.1.1.1
++p "docker socket" test -e /var/run/docker.sock
++printf '%-34s%s\n' "RUBRICS.json files" "$(find / -name RUBRICS.json 2>/dev/null | wc -l)"
++echo ok > "$2/output/probe.txt"
++"""
++    models = _env("HARNESS2_PROVIDER_BASE_URL", "http://llm-proxy:19001/v1").rstrip("/") + "/models"
++    ws = Path(tempfile.mkdtemp(prefix="harness2-sandbox-probe-"))
++    (ws / "output").mkdir()
++    try:
++        code = run(
++            ["bash", "-c", probe, "probe", models, str(ws)],
++            workspace=ws,
++            cwd=ws,
++            env=os.environ,
++            stdout=sys.stdout,
++            stderr=sys.stderr,
++            timeout=120,
++        )
++        back = (ws / "output" / "probe.txt").is_file()
++        print(f"{'workspace copied back':34}{'yes' if back else 'NO'}")
++        print(f"backend={mode()} exit={code}")
++        return 0 if code == 0 and back else 1
++    finally:
++        shutil.rmtree(ws, ignore_errors=True)
++
++
++if __name__ == "__main__":
++    sys.exit(_self_test())

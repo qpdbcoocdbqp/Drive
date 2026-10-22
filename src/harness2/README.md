@@ -12,8 +12,9 @@ cd src/harness2/docker
 git clone -c core.autocrlf=false https://github.com/google-research/harness2.git module
 git -C module checkout 1cfe254e8d25b15f37048c3730134686abe60335
 git -C module apply ../provider-refactor.patch
+git -C module apply ../sandbox.patch        # executor sandbox, see section 4
 
-docker compose build
+docker compose build harness2 sandbox
 cp harness2.env.example harness2.env
 
 docker compose run --rm harness2          # smoke test; expect "Local demo: 2 tasks completed; 0 failed"
@@ -24,8 +25,9 @@ docker compose run --rm harness2          # smoke test; expect "Local demo: 2 ta
 Edit `harness2.env`:
 
 ```bash
-HARNESS2_PROVIDER_BASE_URL=http://host.docker.internal:19001/v1
+HARNESS2_PROVIDER_BASE_URL=http://llm-proxy:19001/v1   # llm-proxy -> host.docker.internal:19001
 HARNESS2_PROVIDER_API_KEY=
+HARNESS2_SANDBOX=docker                  # executor in a throwaway container (section 4); or local
 HARNESS2_SOLVER_MODEL=local/sonnet       # runs the tasks
 HARNESS2_IMPROVER_MODEL=local/sonnet     # improves the harness
 HARNESS2_JUDGE_MODEL=local/sonnet        # grades the results
@@ -111,3 +113,72 @@ Output lands on the host in `runs/jobs/t1_easy/output/`.
 ```bash
 python -I answer_keys/grade.py runs/local_eval
 ```
+
+## 4. Sandbox
+
+The sandbox is a locked room for the AI agent. When the agent runs a task, it works inside a
+small, temporary Docker container instead of the main harness2 container. It can use the files
+for its task and talk to the model, and nothing else. When it finishes, the container is deleted.
+
+Why: an agent runs code and shell commands on its own. In the sandbox it can't read the answer
+files (`RUBRICS.json`), look at other runs, touch your source code, or go on the internet.
+
+Turn it on in `harness2.env`:
+
+```bash
+HARNESS2_SANDBOX=docker      # agent runs in the sandbox
+HARNESS2_SANDBOX=local       # agent runs in the main container, like upstream
+```
+
+Then run the same commands as before. Each attempt of `harness2 --bench jb` and each rollout of
+the hybrid agent (`run` and `fast`) gets its own sandbox.
+
+```mermaid
+flowchart LR
+    H["harness2<br/>main container"]
+    S["sandbox<br/>temporary container"]
+    P["llm-proxy"]
+    M["model server<br/>on your PC, port 19001"]
+    N(("internet<br/>and your files"))
+
+    H -- "1. start, copy task files in" --> S
+    S -- "2. model calls only" --> P
+    P --> M
+    S -- "3. copy results out, delete" --> H
+    S -. "blocked" .-> N
+```
+
+| The agent can | The agent can't |
+|---|---|
+| read and write its own task folder | go on the internet, or reach your PC |
+| call the model through `llm-proxy` | see datasets, `RUBRICS.json`, `runs/`, `tasks/` or the harness2 code |
+| use Python (pandas, numpy, openpyxl, XlsxWriter, python-docx, python-pptx, pdfplumber, matplotlib), pandoc, pdftotext, ripgrep | install new tools (pip and npm have no internet) |
+| | see other runs, your gcloud login, or the Docker socket |
+
+`llm-proxy` is the only door out of the sandbox. It passes traffic to the model server on your
+PC and to nothing else.
+
+Check that it works:
+
+```bash
+docker compose run --rm harness2 python -m harness2.sandbox
+```
+
+You should see the model `reachable`, the internet and Docker socket `blocked`,
+`RUBRICS.json files 0`, and `backend=docker exit=0` at the end.
+
+Common tasks:
+
+| I want to | Do this |
+|---|---|
+| give the agent a new tool | add it to `Dockerfile.sandbox`, then `docker compose build sandbox` |
+| give the sandbox more CPU or memory | set `HARNESS2_SANDBOX_CPUS` (default 4), `HARNESS2_SANDBOX_MEMORY` (4g) |
+| use a model on another machine | set `HARNESS2_LLM_UPSTREAM=<host>:<port>` in the shell or `docker/.env` |
+| use a remote model (like Vertex) | set `HARNESS2_SANDBOX=local`; the sandbox has no internet |
+| stop `llm-proxy` | `docker compose down` (it keeps running after a run) |
+
+Notes:
+
+- The agent sees its files at the same path as before, so prompts don't change.
+- If a run is killed, the next run cleans up its leftover sandbox.
+- The code is `harness2/sandbox.py` (added by `sandbox.patch`).
