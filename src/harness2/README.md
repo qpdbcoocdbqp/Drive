@@ -182,3 +182,108 @@ Notes:
 - The agent sees its files at the same path as before, so prompts don't change.
 - If a run is killed, the next run cleans up its leftover sandbox.
 - The code is `harness2/sandbox.py` (added by `sandbox.patch`).
+
+## 5. Hybrid agent: a harness that improves itself
+
+`agent/hybrid_agent.py` runs a task with a local **executor** model while an **improver** model
+rewrites the harness around it (system prompt, skills, scripts, ...). Model weights never change.
+Run everything from `src/harness2/docker`.
+
+### Setup
+
+Add to `harness2.env`, next to section 2:
+
+```bash
+HARNESS2_OPENAI_BASE_URL=http://llm-proxy:19001/v1   # improver server; unset = api.openai.com
+HARNESS2_OPENAI_API_KEY=
+HARNESS2_OPENAI_MODEL=sonnet                         # model id on that server (no "local/")
+```
+
+The server must support `/v1/responses`. With `HARNESS2_OPENAI_BASE_URL` unset, the improver reads
+your task files through OpenAI; set it to keep everything local.
+
+### Run
+
+```bash
+A="docker compose run --rm harness2 python /opt/agent/hybrid_agent.py"
+
+$A check                                  # verify config and endpoints; prints "ready"
+$A run  tasks/local_eval/t2_medium        # improve the harness on this task, deliver the output
+$A fast tasks/local_eval/t2_medium        # one local rollout with the newest stored harness, no improver
+```
+
+| Option | Meaning |
+|---|---|
+| `--k K` (`run`) | improvement budget, default 1; larger costs about K times more |
+| `--mode parallel\|sequential` | `parallel` tries candidates side by side, `sequential` refines in rounds; default `parallel` |
+| `--domain D` | experience-library domain, default the task folder's parent directory |
+| `--name N` | task name, default the task directory name |
+| `--out DIR` | where to copy the deliverables |
+
+- Re-running an unchanged task **resumes** and does no new work. To repeat from scratch, use a new
+  `--name` (for example `--name t2_medium_r2`).
+- On Windows Git Bash, prefix the command with `MSYS_NO_PATHCONV=1`; otherwise `/opt/agent/...` is
+  rewritten into a Windows path.
+- Experience is stored per **mode and domain**. `parallel` and `sequential` do not share it.
+- A single run varies a lot with a local model. Compare several runs before trusting an improvement.
+
+### Results (under `runs/agent/`)
+
+| What | Where |
+|---|---|
+| delivered files | `out/<domain>/<task>/` (`fast`: `fast/<domain>/<task>/<timestamp>/`) |
+| chosen candidate and why | `runs/agent-oc-agg1/<domain>__<task>/selection/agg1/selection.json` |
+| what each edit did | `runs/agent-oc-agg1/<domain>__<task>/reflection/agg1/edits.md` |
+| stored experience | `library/agg/<domain>/INDEX.md` |
+
+For `--mode sequential`, replace `agg1` with `seq<k>` (`agg` in `library/` becomes `seq`).
+
+<details>
+<summary>Score candidates and remove a stored lesson</summary>
+
+Score a `local_eval` task with the answer key. Copy a candidate's files to `<dir>/t2_medium/output/`,
+then run `grade.py` on `<dir>`:
+
+```bash
+d=/tmp/grade; mkdir -p $d/t2_medium/output
+cp runs/agent/store/local_eval/<task>/model_output/agent-oc-agg1__local_eval__<task>__agg1/* $d/t2_medium/output/
+python -I answer_keys/grade.py $d
+```
+
+`<task>` is the id printed by `run`, for example `t2_medium-2c94d226`. Other candidates: `base1`,
+`inv1`, `dom1`.
+
+Remove a lesson you do not trust (it also rebuilds `INDEX.md`):
+
+```bash
+docker compose run --rm harness2 python -c "
+from harness2 import config
+from harness2.core.library import Library
+from harness2.substrate.opencode import OPENCODE_SURFACE
+lib = Library(root=config.RUNS / 'agent' / 'library' / 'agg', domain='local_eval', surface=OPENCODE_SURFACE)
+lib.forget(['local_eval/t2_medium_r2-2c94d226'])
+print(lib.entries())
+"
+```
+
+</details>
+
+### How it works
+
+```mermaid
+flowchart LR
+    T["task"] --> B["base rollout"]
+    B --> P["improver proposes<br/>INV: how to work<br/>DOM: what a practitioner knows"]
+    LIB[("library<br/>lessons from earlier tasks")] -.-> P
+    P --> R["run each candidate"] --> C["improver composes<br/>one refined harness"] --> D["deliver output"]
+    D --> RF["reflect: what did each edit do?"] --> LIB
+```
+
+- The improver sees the task, trajectories and deliverables, never an answer key. It can only
+  edit the harness files.
+- `run` copies the library into the improver's workspace. The improver decides what to reuse;
+  nothing is applied automatically.
+- `fast` skips the improver and runs the executor with the newest stored harness (the newest, not
+  the best: nothing scores harnesses here).
+- With `--k 1` there is one final candidate and no selection step, so it is delivered as is.
+- Selection and reflection run without ground truth, so a poor choice can also be stored as a lesson.
