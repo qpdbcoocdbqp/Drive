@@ -50,7 +50,6 @@ RUN git clone "$HARNESS2_REPO" . \
  && git checkout --detach "$HARNESS2_REF" \
  && uv venv --python /usr/local/bin/python3.12 /opt/venv \
  && uv pip install --python /opt/venv/bin/python -e ".[${HARNESS2_EXTRAS}]" \
- && uv pip install --python /opt/venv/bin/python "openai>=1.66" \
  && mkdir -p runs /home/harness/.config/opencode /home/harness/.config/gcloud
 
 # Docker CLI: with HARNESS2_SANDBOX=docker, harness2/sandbox.py starts one executor container

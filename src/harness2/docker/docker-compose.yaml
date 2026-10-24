@@ -35,8 +35,6 @@ services:
       - ./runs:/opt/harness2/runs
       # Your own tasks in JobBench format (<domain>/<task>/task_folder/TASK_INSTRUCTIONS.txt + RUBRICS.json)
       - ./tasks:/opt/harness2/tasks:ro
-      # Hybrid agent: local executor + OpenAI improver on Harness² (../README.md section 4)
-      - ./agent:/opt/agent:ro
       # Vertex AI: gcloud Application Default Credentials from the host.
       # Linux/macOS: ~/.config/gcloud   Windows: %APPDATA%/gcloud
       - ${GCLOUD_CONFIG_DIR:-~/.config/gcloud}:/home/harness/.config/gcloud
@@ -45,6 +43,28 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     stdin_open: true
     tty: true
+
+  harness2-api:
+    # Resident HTTP API in front of the harness2 CLI (api/server.py, ../README.md section 6).
+    # Same image, env file and mounts as harness2. It holds the Docker socket, so it is only
+    # published on the loopback interface; set HARNESS2_API_TOKEN in harness2.env to require a token.
+    extends:
+      service: harness2
+    command: ["python", "/opt/api/server.py"]
+    ports:
+      - "127.0.0.1:${HARNESS2_API_PORT:-8765}:8765"
+    volumes:
+      - ./api:/opt/api:ro
+    networks: [default, sandbox]
+    depends_on: [llm-proxy]
+    restart: unless-stopped
+    stdin_open: false
+    tty: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   llm-proxy:
     # The only way out of the sandbox network: a TCP pass-through to the model server.
