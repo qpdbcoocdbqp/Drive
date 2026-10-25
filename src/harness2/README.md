@@ -32,18 +32,40 @@ HARNESS2_IMPROVER_MODEL=local/sonnet   # improves the harness
 HARNESS2_JUDGE_MODEL=local/sonnet      # scores the result
 # HARNESS2_PROVIDER_CONTEXT=131072     # set to the real context of ONE server slot
 # HARNESS2_PROVIDER_OUTPUT=16384
-# HARNESS2_RUNS_DIR=runs/exp1          # use a new folder for each experiment
 ```
 
 Model name is `local/<id on your server>`.
 
 - llama-server: one slot has `--ctx-size` / `--parallel` tokens. If `HARNESS2_PROVIDER_CONTEXT` is bigger, long tasks overflow.
 - One slot runs one job at a time. Don't start two experiments together.
-- Changed the model? Use a new `HARNESS2_RUNS_DIR`.
+- Changed the model? Start a new session (below).
+
+### Where runs are stored
+
+Every run is a session: one `docker compose run` (a shell, a script, the demo) or one API job.
+Each session gets its own folder, `docker/runs/<session-id>/` (git-ignored), with the same layout:
+
+```
+runs/<session-id>/             id: <UTC yyyymmdd-hhmmss>-<4 hex>, e.g. 20261025-091502-3fa1
+├── session.json               kind (cli / task / demo), command, models, state, times, exit codes
+├── log.txt                    all output
+├── jb/                        harness2's files (HARNESS2_RUNS_DIR points at the session folder)
+│   ├── dataset/<domain>/<task>/   attempts, outputs, scores ("Where the results are" below)
+│   ├── adapt/                     improver notes and candidate harnesses
+│   └── library/                   lessons
+└── demo/                      harness2-demo only
+```
+
+- The container prints the id first: `[session] 20261025-091502-3fa1 -> runs/20261025-091502-3fa1/`.
+- Sandbox containers are named `h2sbx-<session-id>-<6 hex>`.
+- Sessions share nothing. Lessons only add up between tasks of the same session.
+- Continue a stopped session: `docker compose run --rm -e HARNESS2_SESSION_ID=<id> harness2 ...`.
+- `state` stays `running` with no `finished` when the container was killed.
+- Don't set `HARNESS2_RUNS_DIR` yourself. The session sets it (`session.sh`, the image's entrypoint).
 
 ## 3. Usage
 
-Open a shell in the container:
+Open a shell in the container (the shell is one session):
 
 ```bash
 docker compose run --rm harness2 bash
@@ -85,7 +107,7 @@ harness2-report --bench jb --k 1 --mode parallel
 | `--workers N` / `--seed N` | N domains at once / fix the task order |
 
 - Use the same `--k`, `--mode`, `--seed` for run, judge and report.
-- Stopped halfway? Run the same command again. It picks up where it left off.
+- Stopped halfway? Run the same command again in the same session. It picks up where it left off.
 
 ### One task only
 
@@ -100,22 +122,23 @@ harness2 --bench jb --only-domains t2_only --k 1 --mode parallel
 ### Run in the background, and stop
 
 ```bash
-mkdir -p runs/exp1
-docker compose run --rm -T -e HARNESS2_RUNS_DIR=runs/exp1 harness2 bash -c '
+docker compose run -d --rm harness2 bash -c '
   harness2 --bench jb --only-domains local_eval --k 1 --mode parallel
   harness2-judge  --bench jb --k 1 --mode parallel
-  harness2-report --bench jb --k 1 --mode parallel' > runs/exp1/run.log 2>&1
+  harness2-report --bench jb --k 1 --mode parallel'
 
+ls -t runs | head -1                                       # the newest session is this one
+tail -f runs/<session-id>/log.txt                          # follow it
 docker stop $(docker ps -q --filter name=harness2-run)     # stop (model server keeps running)
 ```
 
 ### Where the results are
 
 ```
-runs/jb/dataset/<domain>/<task>/          # or $HARNESS2_RUNS_DIR/jb/...
+runs/<session-id>/jb/dataset/<domain>/<task>/
 ├── model_traj/<label>/                   every attempt (.jsonl)
 ├── model_output/<label>/                 the files the agent made
-└── eval_result/<label>/<judge>_judge.json   the judge's score
+└── eval_result/eval_<label>/<judge>_judge.json   the judge's score
 ```
 
 `<label>` ends with `base1` (original harness), `inv1` / `dom1` (two candidates) or `agg1` (final harness).
@@ -130,16 +153,42 @@ runs/jb/dataset/<domain>/<task>/          # or $HARNESS2_RUNS_DIR/jb/...
 
 `harness2` exits with 2 if any task is not `ok`. Don't chain judge and report with `&&`. Use a new line or `;`.
 
+### Look at a trajectory
+
+A web viewer for every attempt under `runs/`. Run it on your PC, not in the container (from `docker/`):
+
+```bash
+uv run tools/traj_viewer.py                 # installs gradio on first use, prints the URL (http://127.0.0.1:7860)
+uv run tools/traj_viewer.py --port 7861     # a fixed port
+uv run tools/traj_viewer.py --runs <dir>    # another runs folder
+```
+
+No `uv`? Use any Python with `gradio>=6` and `pandas`: `python tools/traj_viewer.py`.
+
+Pick an attempt (`session · task · label · attempt`, type to filter). **Refresh** finds new runs.
+
+| Tab | Shows |
+|---|---|
+| (top) | start, duration, steps, tool calls, errors, max input tokens, output tokens |
+| Conversation | the model's text and each tool call (❌ = failed); open one to see its input and output |
+| Timeline | one row per event: time, step, type, status, summary |
+| Tokens | input and output tokens per step. Input near the server's `--ctx-size` means the context is full |
+| Deliverables | the files in `model_output/<label>/` |
+| Judge | each rubric and criterion, passed or not, and the judge's reason |
+| Raw events | one event's JSON by number |
+
+It only reads files. Port taken? Without `--port` it takes the next free one.
+
 ### One task, no improvement
 
 ```bash
 export OPENCODE_CONFIG_CONTENT="$(python -c 'import os; from harness2 import config; print(os.environ["OPENCODE_CONFIG_CONTENT"])')"
-W=/opt/harness2/runs/jobs/t1_easy
+W=$HARNESS2_RUNS_DIR/direct/t1_easy
 mkdir -p $W && cp -r tasks/local_eval/t1_easy/task_folder/* $W/
 /opt/harness2/dependencies/tools/node_modules/.bin/bun run \
   --cwd /opt/harness2/dependencies/opencode/packages/opencode --conditions=browser src/index.ts \
   run "$(cat $W/TASK_INSTRUCTIONS.txt)" --dir $W --model local/sonnet </dev/null
-# files: runs/jobs/t1_easy/output/
+# files: runs/<session-id>/direct/t1_easy/output/
 ```
 
 This runs in the main container (no sandbox) and the judge does not score it.
@@ -213,7 +262,7 @@ For each task:
 3. dom1      improver edit: what an expert knows -> run again
 4. agg1      improver merges the edits into one harness -> run again
 5. deliver   k=1: agg1 is delivered as it is (no choice step). More candidates: a blind pick
-6. learn     save lessons to runs/jb/library/jb/k<K>-oc/  (later tasks in the same domain reuse them)
+6. learn     save lessons to runs/<session-id>/jb/library/jb/k<K>-oc/  (later tasks of the domain in this session reuse them)
 ```
 
 - Step 1 must make files. If the base run makes nothing (`base-failed`), steps 2-6 never happen.
@@ -224,10 +273,29 @@ For each task:
 - The judge is the same small model as the executor. Check a few of its scores by hand.
 - The improver's own session does not run in the sandbox. Only executor runs do.
 
+The original (base) harness already has 5 rules: read all inputs, do every calculation with a Python script, no subagent,
+fix script errors, check `output/` before you finish. They come from `provider-refactor.patch`.
+
+```bash
+module/third_party/jb_runner/harness_baseline_oc/guardrails.md   # edit the rules here (always on, every run)
+```
+
+Test on `t1_easy` (`local/opus`, 8 runs each): with the rules 8 of 8 runs used code and 8 of 8 were right. Without them 3 of 8 used
+code and 5 of 8 were right. Small sample.
+
+Changed `module/`? Make the patch again (run in `docker/`):
+
+```bash
+S="harness2/sandbox.py harness2/benchmarks/jb_opencode_runner.py"
+git -C module add -N harness2/sandbox.py
+git -C module diff --binary -- $S > sandbox.patch
+git -C module diff --binary -- . $(printf " :!%s" $S) > provider-refactor.patch
+```
+
 Why did my harness not change? Read what the improver said:
 
 ```bash
-# in runs/jb/adapt/  (api jobs: runs/api/<domain>/jb/adapt/)
+# in runs/<session-id>/jb/adapt/
 _audit/jb-oc-agg1/*.response.md                                  # improver notes: inv1, dom1, agg1 (KEEP_BASE = no change)
 jb-oc-agg1/<domain>__<task>/reflection/agg1/edits.md             # what each edit did
 jb-oc-agg1/<domain>__<task>/harnesses/<label>/                   # the harness of each candidate
@@ -297,9 +365,10 @@ A small task takes about 10 minutes with `k=1`.
 | `GET /health` | models and queue (no token needed) |
 
 - `state`: `queued`, `running`, `completed`, `failed`, `cancelled`, `interrupted` (server restarted). `completed` only means the commands ran. Look at `outcome` for the real result (section 3).
-- `domain`: each job gets its own by default. Pass the same `domain` to share lessons. Then `harness2` also runs that domain's older unfinished tasks.
+- A job is a session: its id is the session id and its domain. Nothing carries over between jobs, lessons included.
+  For lessons to add up, run the tasks in one CLI session (section 3).
 - Rubrics go in `rubrics`, never in `files` (the agent can see files; the server says no). No `rubrics` means no scoring.
 - `dry_run=True`: stage, preview, then delete.
-- Results: `runs/api/<domain>/jb/dataset/<domain>/<task_id>/model_output/<label>/` (all four candidates). Logs: `runs/api_server/<id>/`.
+- Results: `runs/<id>/jb/dataset/<id>/<name>/model_output/<label>/` (all four candidates). Log: `runs/<id>/log.txt`.
 - The container has the Docker socket, so the port is on `127.0.0.1` only and there is no TLS. To ask for a token, set `HARNESS2_API_TOKEN` in `harness2.env`. Change the port with `HARNESS2_API_PORT`.
 - Edited `api/server.py`? Run `docker compose restart harness2-api`.

@@ -39,10 +39,10 @@ index 1b35190..6c59dbb 100644
              "".join(ln for ln in src if ln.startswith(EVENT_PREFIX)), encoding="utf-8"
 diff --git a/harness2/sandbox.py b/harness2/sandbox.py
 new file mode 100644
-index 0000000..0913033
+index 0000000..d9fe2ec
 --- /dev/null
 +++ b/harness2/sandbox.py
-@@ -0,0 +1,264 @@
+@@ -0,0 +1,266 @@
 +"""Run an agent command on this host or in a throwaway Docker sandbox.
 +
 +HARNESS2_SANDBOX selects the backend:
@@ -151,7 +151,9 @@ index 0000000..0913033
 +    s = Settings.from_env()
 +    workspace = workspace.resolve()
 +    limit = int(timeout or DEFAULT_TIMEOUT)
-+    name = f"h2sbx-{uuid.uuid4().hex[:12]}"
++    # Named after the session (runs/<session id>/) when there is one, so a container maps to its run.
++    session = os.environ.get("HARNESS2_SESSION_ID")
++    name = f"h2sbx-{session}-{uuid.uuid4().hex[:6]}" if session else f"h2sbx-{uuid.uuid4().hex[:12]}"
 +    sweep()
 +    # The deadline lets a later sweep() remove this container if our caller is SIGKILLed.
 +    _create(s, name, argv, cwd, env, deadline=int(time.time()) + limit + 300)

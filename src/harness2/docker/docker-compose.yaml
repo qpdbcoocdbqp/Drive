@@ -35,6 +35,8 @@ services:
       - ./runs:/opt/harness2/runs
       # Your own tasks in JobBench format (<domain>/<task>/task_folder/TASK_INSTRUCTIONS.txt + RUBRICS.json)
       - ./tasks:/opt/harness2/tasks:ro
+      # Our own scripts that drive harness2 without changing it (e.g. tools/eval_harness.py)
+      - ./tools:/opt/tools:ro
       # Vertex AI: gcloud Application Default Credentials from the host.
       # Linux/macOS: ~/.config/gcloud   Windows: %APPDATA%/gcloud
       - ${GCLOUD_CONFIG_DIR:-~/.config/gcloud}:/home/harness/.config/gcloud
@@ -50,6 +52,7 @@ services:
     # published on the loopback interface; set HARNESS2_API_TOKEN in harness2.env to require a token.
     extends:
       service: harness2
+    entrypoint: []   # no session for the server itself: each job is its own session
     command: ["python", "/opt/api/server.py"]
     ports:
       - "127.0.0.1:${HARNESS2_API_PORT:-8765}:8765"

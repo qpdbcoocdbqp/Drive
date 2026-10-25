@@ -15,6 +15,9 @@ harness2 improves a harness: the server only queues, runs and reports.
     DELETE /jobs/<id>?purge=1            remove a finished task's staged files and results
     GET    /health
 
+A job is a session, like a `docker compose run` (session.sh): its id names runs/<id>/, which holds
+session.json, log.txt and harness2's own files.
+
 Standard library only. Set HARNESS2_API_TOKEN to require `Authorization: Bearer <token>`.
 """
 
@@ -42,8 +45,7 @@ ROOT = Path(os.environ.get("HARNESS2_ROOT", "/opt/harness2"))
 DATASET = Path(
     os.environ.get("HARNESS2_API_DATASET", ROOT / "dependencies/job-bench-eval/dataset/main")
 )
-STATE = ROOT / "runs" / "api_server"  # job.json and log.txt per job
-RUNS = ROOT / "runs" / "api"  # one harness2 results root per domain
+RUNS = ROOT / "runs"  # runs/<session id>/, one per job
 TOKEN = os.environ.get("HARNESS2_API_TOKEN", "")
 MAX_BODY = 64 * 1024 * 1024
 MAX_FILES = 200
@@ -78,14 +80,22 @@ def now() -> float:
     return round(time.time(), 3)
 
 
+def session_id() -> str:
+    """Same format as session.sh: <UTC yyyymmdd-hhmmss>-<4 hex>."""
+    while True:
+        sid = f"{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}-{uuid.uuid4().hex[:4]}"
+        if not (RUNS / sid).exists():
+            return sid
+
+
 def save(job: dict) -> None:
     """Persist a job; keys starting with `_` (staged upload data) stay in memory."""
-    d = STATE / job["id"]
+    d = RUNS / job["id"]
     d.mkdir(parents=True, exist_ok=True)
     data = {k: v for k, v in job.items() if not k.startswith("_")}
-    tmp = d / "job.json.tmp"
+    tmp = d / "session.json.tmp"
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    tmp.replace(d / "job.json")
+    tmp.replace(d / "session.json")
 
 
 def update(job: dict, **kw) -> None:
@@ -113,10 +123,11 @@ def parse_submission(body: dict, job_id: str) -> tuple[str, dict, dict]:
         raise ValueError("k must be an integer 1..16")
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")
-    domain = body.get("domain") or f"job-{job_id}"
+    if body.get("domain"):
+        raise ValueError("'domain' is not supported: every job is its own session and domain")
     name = body.get("name") or "task"
-    if not valid_name(domain) or not valid_name(name):
-        raise ValueError("domain and name: letters, digits, '-' and '_' (max 48), no '__'")
+    if not valid_name(name):
+        raise ValueError("name: letters, digits, '-' and '_' (max 48), no '__'")
 
     files: dict[str, bytes] = {}
     for path, b64 in (body.get("files") or {}).items():
@@ -142,8 +153,8 @@ def parse_submission(body: dict, job_id: str) -> tuple[str, dict, dict]:
     dry_run = bool(body.get("dry_run", False))
     judge = bool(body.get("judge", True)) and rubrics is not None and not dry_run
     params = {
-        "domain": domain,
-        "task_id": f"{name}-{job_id[:6]}",
+        "domain": job_id,  # the session id: unique, so the task needs no suffix
+        "task_id": name,
         "k": k,
         "mode": mode,
         "judge": judge,
@@ -171,26 +182,24 @@ def stage_task(params: dict, staged: dict) -> None:
 # ------------------------------------------------------------------ run
 def result_dir(job: dict) -> Path:
     p = job["params"]
-    return RUNS / p["domain"] / "jb" / "dataset" / p["domain"] / p["task_id"]
+    return RUNS / job["id"] / "jb" / "dataset" / p["domain"] / p["task_id"]
 
 
 def purge(job: dict) -> None:
-    """Remove a task's staged files and results. Experience libraries are left alone."""
+    """Remove a task's staged files and the session's harness2 files; session.json and log.txt stay."""
     p = job["params"]
-    for d in (DATASET / p["domain"] / p["task_id"], result_dir(job)):
-        shutil.rmtree(d, ignore_errors=True)
+    shutil.rmtree(DATASET / p["domain"] / p["task_id"], ignore_errors=True)
     try:
         (DATASET / p["domain"]).rmdir()  # only when empty
     except OSError:
         pass
-    if p["domain"] == f"job-{job['id']}":  # isolated domain: nothing else lives there
-        shutil.rmtree(RUNS / p["domain"], ignore_errors=True)
+    shutil.rmtree(RUNS / job["id"] / "jb", ignore_errors=True)
 
 
 def phases(job: dict) -> list[tuple[str, list[str]]]:
     p = job["params"]
     if job["kind"] == "demo":
-        out = STATE / job["id"] / "demo"
+        out = RUNS / job["id"] / "demo"
         return [("demo", ["harness2-demo", "--output", str(out), "--k", str(p["k"]), "--mode", p["mode"]])]
     base = ["--bench", "jb", "--k", str(p["k"]), "--mode", p["mode"]]
     run = ["harness2", *base, "--only-domains", p["domain"]]
@@ -205,7 +214,7 @@ def phases(job: dict) -> list[tuple[str, list[str]]]:
 def run_job(job: dict) -> None:
     jid, kind = job["id"], job["kind"]
     update(job, state="running", started=now(), phase="staging")
-    log = STATE / jid / "log.txt"
+    log = RUNS / jid / "log.txt"
     try:
         if kind == "task":
             stage_task(job["params"], job.pop("_staged"))
@@ -213,11 +222,8 @@ def run_job(job: dict) -> None:
         update(job, state="failed", finished=now(), error=f"staging: {e}")
         return
 
-    env = dict(os.environ)
-    if kind == "task":
-        root = RUNS / job["params"]["domain"]
-        root.mkdir(parents=True, exist_ok=True)
-        env["HARNESS2_RUNS_DIR"] = str(root)
+    # What session.sh sets for a container run; the sandbox names its containers after the session.
+    env = {**os.environ, "HARNESS2_SESSION_ID": jid, "HARNESS2_RUNS_DIR": str(RUNS / jid)}
     codes: dict[str, int] = {}
     with log.open("ab") as fh:
         for phase, cmd in phases(job):
@@ -372,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
             if len(seg) == 2:
                 return self._send(200, view(job, detail=True))
             if seg[2] == "log" and len(seg) == 3:
-                p = STATE / job["id"] / "log.txt"
+                p = RUNS / job["id"] / "log.txt"
                 text = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
                 tail = parse_qs(url.query).get("tail", [""])[0]
                 if tail.isdigit():
@@ -403,7 +409,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n))
             if not isinstance(body, dict):
                 raise ValueError("body must be a JSON object")
-            jid = uuid.uuid4().hex[:8]
+            jid = session_id()
             kind, params, staged = parse_submission(body, jid)
         except (ValueError, TypeError) as e:
             return self._err(400, str(e))
@@ -445,11 +451,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def load_jobs() -> None:
-    STATE.mkdir(parents=True, exist_ok=True)
-    for p in sorted(STATE.glob("*/job.json")):
+    RUNS.mkdir(parents=True, exist_ok=True)
+    for p in sorted(RUNS.glob("*/session.json")):
         try:
             job = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            continue
+        if job.get("kind") not in ("task", "demo"):  # a `docker compose run` session, not ours
             continue
         if job.get("state") in ("queued", "running"):
             job.update(state="interrupted", finished=now())

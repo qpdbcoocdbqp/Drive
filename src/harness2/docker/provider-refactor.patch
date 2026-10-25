@@ -304,6 +304,19 @@ index 93651cd..86e6cab 100644
                      errors.append(f"WorkBuddy {role} configuration is stale; rerun setup")
              except (OSError, ValueError, KeyError, TypeError):
                  errors.append(f"WorkBuddy {role} configuration missing; rerun setup")
+diff --git a/third_party/jb_runner/harness_baseline_oc/guardrails.md b/third_party/jb_runner/harness_baseline_oc/guardrails.md
+index e4881bd..4c9c147 100644
+--- a/third_party/jb_runner/harness_baseline_oc/guardrails.md
++++ b/third_party/jb_runner/harness_baseline_oc/guardrails.md
+@@ -1 +1,7 @@
+-<!-- c6 guardrails. EMPTY in v0. Evolution adds always-on rules here. -->
++# Rules (always on)
++
++1. Read every input file in the task folder completely before you start.
++2. Do ALL calculations with a Python script that you run with bash. Never add, multiply or compare numbers by hand or in your head. Print the results and copy them from the script output.
++3. Do the work yourself. Do not hand it to a subagent.
++4. If a script prints an error or an odd result, fix the script and run it again. Do not report a result you have not seen printed.
++5. Write the final files into output/. Before you finish, run `ls output/` and read the files back. If a file is missing or wrong, fix it.
 diff --git a/third_party/patches/harvey-labs-judge-vertex-anthropic.diff b/third_party/patches/harvey-labs-judge-vertex-anthropic.diff
 index f1dbfe1..1781edf 100644
 --- a/third_party/patches/harvey-labs-judge-vertex-anthropic.diff

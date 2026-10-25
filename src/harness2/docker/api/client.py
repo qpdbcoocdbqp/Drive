@@ -75,7 +75,6 @@ class Harness2Client:
         rubrics: dict | None = None,
         *,
         name: str = "task",
-        domain: str | None = None,
         k: int = 1,
         mode: str = "parallel",
         judge: bool = True,
@@ -83,8 +82,7 @@ class Harness2Client:
     ) -> dict:
         """Submit a task. `files` maps a path inside task_folder/ to its content.
 
-        `domain=None` isolates the job. Reuse one domain name to let the experience library of
-        that domain accumulate; jobs of one domain re-run its unfinished tasks too.
+        Each job is its own session (runs/<id>/) and domain: nothing carries over between jobs.
         """
         enc = {
             p: base64.b64encode(c.encode() if isinstance(c, str) else c).decode()
@@ -96,8 +94,6 @@ class Harness2Client:
             body["instructions"] = instructions
         if rubrics is not None:
             body["rubrics"] = rubrics
-        if domain:
-            body["domain"] = domain
         return self._call("POST", "/jobs", body)
 
     def submit_folder(self, task_dir: str | Path, **kw) -> dict:
@@ -148,7 +144,7 @@ class Harness2Client:
         return self._call("DELETE", f"/jobs/{job_id}")
 
     def purge(self, job_id: str) -> dict:
-        """Remove a finished task's staged files and results from the server (the library stays)."""
+        """Remove a finished task's staged files and results from the server (session.json and log stay)."""
         return self._call("DELETE", f"/jobs/{job_id}?purge=1")
 
     def wait(self, job_id: str, poll: float = 5, timeout: float | None = None, on_update=None) -> dict:
@@ -183,7 +179,6 @@ def main(argv=None) -> int:
     d.add_argument("--mode", default="both", choices=("parallel", "sequential", "both"))
     t = sub.add_parser("task", help="submit a JobBench-layout task directory")
     t.add_argument("dir")
-    t.add_argument("--domain")
     t.add_argument("--k", type=int, default=1)
     t.add_argument("--mode", default="parallel", choices=("parallel", "sequential"))
     t.add_argument("--no-judge", action="store_true")
@@ -207,7 +202,7 @@ def main(argv=None) -> int:
                 print(j["id"], j["kind"], j["state"], j.get("outcome", ""), j["params"].get("task_id", ""))
         elif a.cmd in ("demo", "task"):
             job = (h.submit_demo(a.k, a.mode) if a.cmd == "demo" else
-                   h.submit_folder(a.dir, domain=a.domain, k=a.k, mode=a.mode,
+                   h.submit_folder(a.dir, k=a.k, mode=a.mode,
                                    judge=not a.no_judge, dry_run=a.dry_run))
             _show(job)
             if a.wait or getattr(a, "fetch", None):

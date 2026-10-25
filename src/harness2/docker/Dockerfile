@@ -62,5 +62,9 @@ ENV VIRTUAL_ENV=/opt/venv \
 # dependencies/: benchmark checkouts + data from harness2-setup; runs/: results.
 VOLUME ["/opt/harness2/dependencies", "/opt/harness2/runs"]
 
+# Every container run is one session: runs/<session-id>/ (session.sh, ../README.md).
+COPY --chmod=755 session.sh /usr/local/bin/harness2-session
+ENTRYPOINT ["harness2-session"]
+
 # Smoke test without model credentials.
-CMD ["harness2-demo", "--output", "runs/demo", "--k", "2"]
+CMD ["bash", "-c", "harness2-demo --output \"$HARNESS2_RUNS_DIR/demo\" --k 2"]
