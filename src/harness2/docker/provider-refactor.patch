@@ -1,0 +1,464 @@
+diff --git a/harness2/benchmarks/workbuddy.py b/harness2/benchmarks/workbuddy.py
+index 27a95b5..6c82110 100644
+--- a/harness2/benchmarks/workbuddy.py
++++ b/harness2/benchmarks/workbuddy.py
+@@ -621,6 +621,8 @@ def run_batch(
+             **os.environ,
+             "NO_FORCE_BUILD": "1",
+             "HARNESS2_WB_VERTEX_URL": config.VERTEX_OPENAI_URL + "/chat/completions",
++            "HARNESS2_WB_PROVIDER_URL": config.PROVIDER_BASE_URL + "/chat/completions",
++            "HARNESS2_PROVIDER_API_KEY": config.PROVIDER_API_KEY or "none",
+         }
+         try:
+             with _slots[substrate]:
+diff --git a/harness2/config.py b/harness2/config.py
+index 59e0703..b5bfdc2 100644
+--- a/harness2/config.py
++++ b/harness2/config.py
+@@ -16,6 +16,7 @@
+ 
+ from __future__ import annotations
+ 
++import json
+ import os
+ import sys
+ from pathlib import Path
+@@ -101,6 +102,52 @@ SOLVER_MODEL_CX = env("HARNESS2_CODEX_MODEL", SOLVER_MODEL_OC.split("/", 1)[-1])
+ IMPROVER_MODEL = env("HARNESS2_IMPROVER_MODEL", SOLVER_MODEL_OC)
+ JUDGE_MODEL = env("HARNESS2_JUDGE_MODEL", "")
+ 
++# OpenAI-compatible provider (vLLM, llama.cpp, llama-swap, Ollama, LiteLLM, ...). Any role
++# whose model is "<PROVIDER_ID>/<model>" is served from PROVIDER_BASE_URL with PROVIDER_API_KEY.
++PROVIDER_ID = env("HARNESS2_PROVIDER_ID", "local")
++PROVIDER_BASE_URL = env("HARNESS2_PROVIDER_BASE_URL", "").rstrip("/")
++PROVIDER_API_KEY = env("HARNESS2_PROVIDER_API_KEY", "")
++PROVIDER_CONTEXT = env_int("HARNESS2_PROVIDER_CONTEXT", 131072)
++PROVIDER_OUTPUT = env_int("HARNESS2_PROVIDER_OUTPUT", 16384)
++
++
++def provider_model(model: str) -> str:
++    """The bare model id when `model` is "<PROVIDER_ID>/<id>", else ""."""
++    prefix = PROVIDER_ID + "/"
++    return model[len(prefix) :] if model.startswith(prefix) else ""
++
++
++def wb_model_name(model: str) -> str:
++    """The backend model name a WorkBuddy route sends: the bare provider id, or Vertex's
++    "google/<gemini id>" for an OpenCode-style or bare Gemini id."""
++    return provider_model(model) or "google/" + model.removeprefix("google-vertex/")
++
++
++def _opencode_provider_config() -> None:
++    """Register the provider with every OpenCode process (executor, improver) through
++    OPENCODE_CONFIG_CONTENT, merged into any value the shell already set. The key stays an
++    {env:...} reference so it is never written into a config file or a log."""
++    models = {m for m in map(provider_model, (SOLVER_MODEL_OC, IMPROVER_MODEL)) if m}
++    if not (PROVIDER_BASE_URL and models):
++        return
++    try:
++        content = json.loads(os.environ.get("OPENCODE_CONFIG_CONTENT") or "{}")
++    except ValueError as e:
++        raise ConfigError(f"OPENCODE_CONFIG_CONTENT is not valid JSON: {e}") from e
++    content.setdefault("provider", {})[PROVIDER_ID] = {
++        "npm": "@ai-sdk/openai-compatible",
++        "name": f"OpenAI-compatible ({PROVIDER_BASE_URL})",
++        "options": {"baseURL": PROVIDER_BASE_URL, "apiKey": "{env:HARNESS2_PROVIDER_API_KEY}"},
++        "models": {
++            m: {"name": m, "limit": {"context": PROVIDER_CONTEXT, "output": PROVIDER_OUTPUT}}
++            for m in sorted(models)
++        },
++    }
++    os.environ["OPENCODE_CONFIG_CONTENT"] = json.dumps(content)
++
++
++_opencode_provider_config()
++
+ DEPENDENCY_PINS = {
+     "job-bench-eval": "fa03a17f9ff662f136798a274e10011c3aa00fd0",
+     "workbuddy-bench": "b516950be5b56eb3be406c2f76ee1c5111dcb57f",
+@@ -130,16 +177,22 @@ def lab_repo() -> Path:
+ OPENCODE_DIR = DEPENDENCIES / "opencode"
+ BUN = DEPENDENCIES / "tools" / "node_modules" / ".bin" / "bun"
+ LAB_PYTHON = lab_repo() / ".venv" / "bin" / "python"
++_JUDGE_PROVIDER_MODEL = provider_model(JUDGE_MODEL)
+ LAB_JUDGE_MODEL = (
+-    "vertex/" + JUDGE_MODEL if JUDGE_MODEL.startswith(("claude", "gemini")) else JUDGE_MODEL
++    "openai-compat/" + _JUDGE_PROVIDER_MODEL
++    if _JUDGE_PROVIDER_MODEL
++    else "vertex/" + JUDGE_MODEL
++    if JUDGE_MODEL.startswith(("claude", "gemini"))
++    else JUDGE_MODEL
+ )
+ LAB_DELIV_CAP = 60000
+ JB_JUDGE_PYTHON = jb_repo() / ".venv" / "bin" / "python"
+-JB_JUDGE_MODEL = (
+-    "google/" + JUDGE_MODEL
+-    if JUDGE_MODEL.startswith("gemini") and not env("HARNESS2_JUDGE_BASE_URL")
+-    else JUDGE_MODEL
+-)
++if _JUDGE_PROVIDER_MODEL:
++    JB_JUDGE_MODEL = _JUDGE_PROVIDER_MODEL
++elif JUDGE_MODEL.startswith("gemini") and not env("HARNESS2_JUDGE_BASE_URL"):
++    JB_JUDGE_MODEL = "google/" + JUDGE_MODEL
++else:
++    JB_JUDGE_MODEL = JUDGE_MODEL
+ _vertex_host = (
+     "aiplatform.googleapis.com"
+     if VERTEX_REGION == "global"
+@@ -149,17 +202,26 @@ VERTEX_OPENAI_URL = (
+     f"https://{_vertex_host}/v1/projects/{VERTEX_PROJECT}"
+     f"/locations/{VERTEX_REGION}/endpoints/openapi"
+ )
+-JB_JUDGE_API_BASE = env("HARNESS2_JUDGE_BASE_URL", VERTEX_OPENAI_URL if VERTEX_PROJECT else "")
+-JB_JUDGE_API_KEY = env("HARNESS2_JUDGE_API_KEY", "")
++if _JUDGE_PROVIDER_MODEL:
++    # A keyless local server still needs a non-empty key, or the adapter falls back to gcloud.
++    JB_JUDGE_API_BASE = env("HARNESS2_JUDGE_BASE_URL", PROVIDER_BASE_URL)
++    JB_JUDGE_API_KEY = env("HARNESS2_JUDGE_API_KEY", PROVIDER_API_KEY or "none")
++else:
++    JB_JUDGE_API_BASE = env("HARNESS2_JUDGE_BASE_URL", VERTEX_OPENAI_URL if VERTEX_PROJECT else "")
++    JB_JUDGE_API_KEY = env("HARNESS2_JUDGE_API_KEY", "")
+ JB_JUDGE_REASONING_EFFORT = "low"
+ JB_REPORTING_JUDGE_DETAILS = ""
+ JB_OBS_TRUNC = 50000
+ 
+ CODEX_VERSION = "0.144.6"
+ CODEX_DIST = str(DEPENDENCIES / "codex" / "dist")
+-CODEX_BASE_URL = env("HARNESS2_CODEX_BASE_URL", "")
++# Codex talks the Responses API; a provider-served solver defaults to the provider endpoint.
++_SOLVER_ON_PROVIDER = bool(provider_model(SOLVER_MODEL_OC) and PROVIDER_BASE_URL)
++CODEX_BASE_URL = env("HARNESS2_CODEX_BASE_URL", PROVIDER_BASE_URL if _SOLVER_ON_PROVIDER else "")
+ CODEX_CONTAINER_URL = env("HARNESS2_CODEX_CONTAINER_URL", CODEX_BASE_URL)
+-VERTEX_PROXY_KEY = env("HARNESS2_CODEX_API_KEY", "")
++VERTEX_PROXY_KEY = env(
++    "HARNESS2_CODEX_API_KEY", (PROVIDER_API_KEY or "none") if _SOLVER_ON_PROVIDER else ""
++)
+ CODEX_HOME_DIR = DEPENDENCIES / "codex" / "home"
+ 
+ WB_SOLVER_MODEL = "harness2/solver"
+@@ -185,5 +247,11 @@ def validate_models(*, judge: bool = False) -> None:
+     if any(m.startswith("google-vertex") for m in (SOLVER_MODEL_OC, IMPROVER_MODEL)):
+         if not VERTEX_PROJECT:
+             raise ConfigError("Set GOOGLE_CLOUD_PROJECT for Vertex AI")
++    roles = (SOLVER_MODEL_OC, IMPROVER_MODEL) + ((JUDGE_MODEL,) if judge else ())
++    if any(provider_model(m) for m in roles) and not PROVIDER_BASE_URL:
++        raise ConfigError(
++            f"Models prefixed {PROVIDER_ID}/ need HARNESS2_PROVIDER_BASE_URL "
++            "(an OpenAI-compatible endpoint, e.g. http://localhost:19001/v1)"
++        )
+     if judge:
+         require("HARNESS2_JUDGE_MODEL", needed_by="benchmark judging")
+diff --git a/harness2/install.py b/harness2/install.py
+index e126bc4..d04a90d 100644
+--- a/harness2/install.py
++++ b/harness2/install.py
+@@ -148,40 +148,56 @@ def overlays(name: str, *, dry_run=False):
+             )
+ 
+ 
++def _wb_route(role: str, model: str) -> dict:
++    """One WorkBuddy model route: the OpenAI-compatible provider, or Gemini on Vertex."""
++    if config.provider_model(model):
++        return {
++            "name": config.wb_model_name(model),
++            "protocols": ["openai"],
++            "backend_url_env": "HARNESS2_WB_PROVIDER_URL",
++            "backend_key_env": "HARNESS2_PROVIDER_API_KEY",
++            "params": {
++                "max_output_tokens": min(
++                    config.PROVIDER_OUTPUT, 64000 if role == "solver" else 16384
++                )
++            },
++        }
++    return {
++        "name": config.wb_model_name(model),
++        "protocols": ["openai"],
++        "backend_url_env": "HARNESS2_WB_VERTEX_URL",
++        "backend_key_command": "gcloud auth application-default print-access-token",
++        "backend_key_ttl": 1800,
++        "thought_signature_passback": True,
++        "params": {
++            "max_output_tokens": 64000 if role == "solver" else 16384,
++            "extra_body": {"reasoning_effort": "high" if role == "solver" else "low"},
++        },
++    }
++
++
+ def workbuddy_models(*, dry_run=False):
+-    """Generate the two Vertex routes from the user's model IDs, never credentials."""
+-    solver = config.SOLVER_MODEL_OC.removeprefix("google-vertex/")
+-    judge = config.JUDGE_MODEL
++    """Generate the solver and judge routes from the user's model IDs, never credentials."""
++    roles = (("solver", config.SOLVER_MODEL_OC), ("judge", config.JUDGE_MODEL))
+     problem = ""
+-    if not config.SOLVER_MODEL_OC.startswith("google-vertex/gemini") or not judge.startswith(
+-        "gemini"
+-    ):
+-        problem = (
+-            "WorkBuddy setup requires a google-vertex/gemini... executor "
+-            "and a gemini... judge; choose IDs available in your project"
+-        )
+-    elif not config.VERTEX_PROJECT:
+-        problem = "Set GOOGLE_CLOUD_PROJECT for WorkBuddy's Vertex routes"
++    for role, model in roles:
++        if config.provider_model(model):
++            if not config.PROVIDER_BASE_URL:
++                problem = f"Set HARNESS2_PROVIDER_BASE_URL for the WorkBuddy {role} route"
++        elif not config.wb_model_name(model).startswith("google/gemini"):
++            problem = (
++                f"WorkBuddy {role} must be {config.PROVIDER_ID}/<model> or Gemini on Vertex "
++                "(google-vertex/gemini... executor, gemini... judge)"
++            )
++        elif not config.VERTEX_PROJECT:
++            problem = "Set GOOGLE_CLOUD_PROJECT for WorkBuddy's Vertex routes"
+     if problem:
+         if not dry_run:
+             raise config.ConfigError(problem)
+         print(f"Configure WorkBuddy solver and judge routes -- {problem}", flush=True)
+         return
+-    for role, model in (("solver", solver), ("judge", judge)):
+-        payload = {
+-            "model": {
+-                "name": "google/" + model,
+-                "protocols": ["openai"],
+-                "backend_url_env": "HARNESS2_WB_VERTEX_URL",
+-                "backend_key_command": "gcloud auth application-default print-access-token",
+-                "backend_key_ttl": 1800,
+-                "thought_signature_passback": True,
+-                "params": {
+-                    "max_output_tokens": 64000 if role == "solver" else 16384,
+-                    "extra_body": {"reasoning_effort": "high" if role == "solver" else "low"},
+-                },
+-            }
+-        }
++    for role, model in roles:
++        payload = {"model": _wb_route(role, model)}
+         path = config.wb_repo() / "configs" / "models" / "harness2" / f"{role}.yaml"
+         print(f"Configure WorkBuddy {role}: {model}", flush=True)
+         if not dry_run:
+diff --git a/harness2/preflight.py b/harness2/preflight.py
+index 93651cd..86e6cab 100644
+--- a/harness2/preflight.py
++++ b/harness2/preflight.py
+@@ -19,12 +19,34 @@ from __future__ import annotations
+ import json
+ import shutil
+ import subprocess
++import urllib.error
++import urllib.request
+ 
+ from . import config
+ from .install import PATCHES, missing_runners
+ from .substrate.opencode import OpencodeSubstrate
+ 
+ 
++def provider_problems(models: set[str]) -> list[str]:
++    """List the OpenAI-compatible provider's models (GET /models, no inference) and report
++    an unreachable endpoint, a rejected key, or a configured model it does not serve."""
++    url = config.PROVIDER_BASE_URL + "/models"
++    headers = (
++        {"Authorization": f"Bearer {config.PROVIDER_API_KEY}"} if config.PROVIDER_API_KEY else {}
++    )
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=15) as r:
++            served = {m.get("id") for m in json.load(r).get("data", [])}
++    except urllib.error.HTTPError as exc:
++        return [f"Provider {url}: HTTP {exc.code}; check HARNESS2_PROVIDER_API_KEY"]
++    except (OSError, ValueError) as exc:
++        return [f"Provider {url} unreachable ({exc}); check HARNESS2_PROVIDER_BASE_URL"]
++    missing = sorted(models - served)
++    if missing:
++        return [f"Provider {url} does not list {', '.join(missing)}; served: {sorted(served)}"]
++    return []
++
++
+ def check(adapter, *, judge=False) -> list[str]:
+     missing = missing_runners()
+     if missing:
+@@ -83,6 +105,12 @@ def check(adapter, *, judge=False) -> list[str]:
+             "Google Application Default Credentials",
+             ["gcloud", "auth", "application-default", "print-access-token"],
+         )
++    roles = (config.SOLVER_MODEL_OC, config.IMPROVER_MODEL) + (
++        (config.JUDGE_MODEL,) if judge else ()
++    )
++    wanted = {m for m in map(config.provider_model, roles) if m}
++    if wanted and config.PROVIDER_BASE_URL:
++        errors.extend(provider_problems(wanted))
+     if bench == "lab":
+         for binary in ("pandoc", "pdftoppm"):
+             if not shutil.which(binary):
+@@ -131,13 +159,10 @@ def check(adapter, *, judge=False) -> list[str]:
+             ],
+             cwd=repo,
+         )
+-        for role, expected in (
+-            ("solver", config.SOLVER_MODEL_OC.removeprefix("google-vertex/")),
+-            ("judge", config.JUDGE_MODEL),
+-        ):
++        for role, model in (("solver", config.SOLVER_MODEL_OC), ("judge", config.JUDGE_MODEL)):
+             path = repo / "configs/models/harness2" / f"{role}.yaml"
+             try:
+-                if json.loads(path.read_text())["model"]["name"] != "google/" + expected:
++                if json.loads(path.read_text())["model"]["name"] != config.wb_model_name(model):
+                     errors.append(f"WorkBuddy {role} configuration is stale; rerun setup")
+             except (OSError, ValueError, KeyError, TypeError):
+                 errors.append(f"WorkBuddy {role} configuration missing; rerun setup")
+diff --git a/third_party/jb_runner/harness_baseline_oc/guardrails.md b/third_party/jb_runner/harness_baseline_oc/guardrails.md
+index e4881bd..4c9c147 100644
+--- a/third_party/jb_runner/harness_baseline_oc/guardrails.md
++++ b/third_party/jb_runner/harness_baseline_oc/guardrails.md
+@@ -1 +1,7 @@
+-<!-- c6 guardrails. EMPTY in v0. Evolution adds always-on rules here. -->
++# Rules (always on)
++
++1. Read every input file in the task folder completely before you start.
++2. Do ALL calculations with a Python script that you run with bash. Never add, multiply or compare numbers by hand or in your head. Print the results and copy them from the script output.
++3. Do the work yourself. Do not hand it to a subagent.
++4. If a script prints an error or an odd result, fix the script and run it again. Do not report a result you have not seen printed.
++5. Write the final files into output/. Before you finish, run `ls output/` and read the files back. If a file is missing or wrong, fix it.
+diff --git a/third_party/patches/harvey-labs-judge-vertex-anthropic.diff b/third_party/patches/harvey-labs-judge-vertex-anthropic.diff
+index f1dbfe1..1781edf 100644
+--- a/third_party/patches/harvey-labs-judge-vertex-anthropic.diff
++++ b/third_party/patches/harvey-labs-judge-vertex-anthropic.diff
+@@ -1,12 +1,16 @@
++diff --git a/evaluation/judge.py b/evaluation/judge.py
++index ffad89d..bd564ff 100644
+ --- a/evaluation/judge.py
+ +++ b/evaluation/judge.py
+-@@ -28,8 +28,12 @@
++@@ -28,8 +28,14 @@ _VERDICT_SCHEMA = {
+  }
+  
+  def _detect_provider(model: str) -> str:
+ -    """Return 'anthropic', 'google', 'openai', or 'mistral' from the model name."""
+-+    """Return 'vertex-anthropic', 'anthropic', 'google', 'openai', or 'mistral'."""
+++    """Return 'openai-compat', 'vertex-anthropic', 'anthropic', 'google', 'openai', or 'mistral'."""
+      name = model.lower()
+++    if name.startswith("openai-compat/"):
+++        return "openai-compat"
+ +    if name.startswith("vertex/gemini"):
+ +        return "vertex-google"
+ +    if name.startswith("vertex/"):
+@@ -14,7 +18,7 @@
+      if name.startswith("claude"):
+          return "anthropic"
+      if name.startswith("gemini"):
+-@@ -50,9 +54,24 @@
++@@ -50,9 +56,38 @@ class Judge:
+              model: Model ID (e.g. 'claude-sonnet-4-6', 'gemini-3-flash-preview',
+                  'gpt-5.4', 'mistral-medium-3.5').
+          """
+@@ -23,8 +27,22 @@
+ -        if self.provider == "anthropic":
+ +        # 'vertex/claude-opus-4-8' -> API model id 'claude-opus-4-8'. The bare
+ +        # id is what lands in scores_<model>.json filenames, so keep it clean.
+-+        self.model = model.split("/", 1)[1] if self.provider.startswith("vertex-") else model
+-+        if self.provider == "vertex-anthropic":
+++        self.model = (
+++            model.split("/", 1)[1]
+++            if self.provider.startswith("vertex-") or self.provider == "openai-compat"
+++            else model
+++        )
+++        if self.provider == "openai-compat":
+++            # Any OpenAI-compatible server (vLLM, llama.cpp, llama-swap, Ollama), set up
+++            # by Harness2's HARNESS2_PROVIDER_* settings. Chat Completions, which every
+++            # such server implements; the Responses API often is not.
+++            self.client = openai.OpenAI(
+++                base_url=os.environ["HARNESS2_PROVIDER_BASE_URL"],
+++                api_key=os.environ.get("HARNESS2_PROVIDER_API_KEY") or "none",
+++                max_retries=3,
+++                timeout=900.0,
+++            )
+++        elif self.provider == "vertex-anthropic":
+ +            # Claude on Vertex via ADC — no API key. Anthropic models on
+ +            # Vertex are served from the global endpoint.
+ +            self.client = anthropic.AnthropicVertex(
+@@ -41,7 +59,7 @@
+              self.client = anthropic.Anthropic(max_retries=1)
+          elif self.provider == "google":
+              self.client = genai.Client()
+-@@ -65,7 +84,13 @@
++@@ -65,7 +100,13 @@ class Judge:
+              )
+  
+      def evaluate(
+@@ -56,7 +74,7 @@
+      ) -> dict:
+          """Send a formatted prompt to the judge and parse the JSON response.
+  
+-@@ -78,13 +103,78 @@
++@@ -78,14 +119,81 @@ class Judge:
+              Parsed JSON dict from the judge's response.
+          """
+          prompt = prompt_template.format(**variables)
+@@ -69,8 +87,10 @@
+              return self._evaluate_google(prompt, temperature, _retries)
+          if self.provider == "openai":
+              return self._evaluate_openai(prompt, temperature, _retries)
+++        if self.provider == "openai-compat":
+++            return self._evaluate_openai_compat(prompt, temperature, _retries)
+          return self._evaluate_mistral(prompt, temperature, _retries)
+-+
++ 
+ +    # System steer replaces the structured-output constraint we can't use on
+ +    # Vertex (see _evaluate_anthropic_vertex). The rubric prompt already asks
+ +    # for a fenced JSON object, and _parse_json strips the fences.
+@@ -133,10 +153,46 @@
+ +        raise ValueError(
+ +            f"Judge returned unparseable response after {_retries} attempts: {last_err}"
+ +        )
+- 
+++
+      def _evaluate_anthropic(self, prompt: str, temperature: float, _retries: int) -> dict:
+          last_err: Exception | None = None
+-@@ -236,11 +326,21 @@
++         for attempt in range(_retries):
++@@ -190,6 +298,34 @@ class Judge:
++             f"Judge returned unparseable response after {_retries} attempts: {last_err}"
++         )
++ 
+++    def _evaluate_openai_compat(self, prompt: str, temperature: float, _retries: int) -> dict:
+++        last_err: Exception | None = None
+++        for attempt in range(_retries):
+++            kwargs = {
+++                "model": self.model,
+++                "messages": [{"role": "user", "content": prompt}],
+++                "temperature": temperature,
+++                "max_tokens": 16384,
+++            }
+++            if attempt < _retries - 1:
+++                kwargs["response_format"] = {
+++                    "type": "json_schema",
+++                    "json_schema": {"name": "verdict", "schema": _VERDICT_SCHEMA},
+++                }
+++            try:
+++                response = self.client.chat.completions.create(**kwargs)
+++            except Exception as e:
+++                last_err = e
+++                continue
+++            text = response.choices[0].message.content or ""
+++            try:
+++                return self._parse_json(text)
+++            except (ValueError, json.JSONDecodeError) as e:
+++                last_err = e
+++        raise ValueError(
+++            f"Judge returned unparseable response after {_retries} attempts: {last_err}"
+++        )
+++
++     def _evaluate_mistral(self, prompt: str, temperature: float, _retries: int) -> dict:
++         last_err: Exception | None = None
++         for attempt in range(_retries):
++@@ -236,11 +372,21 @@ class Judge:
+          match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+          if match:
+              try:
+@@ -160,7 +216,7 @@
+          for i, ch in enumerate(text):
+              if ch == '{':
+                  depth = 0
+-@@ -251,9 +351,61 @@
++@@ -251,9 +397,61 @@ class Judge:
+                          depth -= 1
+                      if depth == 0:
+                          try:

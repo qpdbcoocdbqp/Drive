@@ -1,0 +1,36 @@
+{
+  "rubrics": [
+    {
+      "rubric": "Does the report give the correct overall inventory value of 46996.19 USD?",
+      "weight": 10,
+      "criterion": [
+        "Overall total is 46996.19",
+        "Value is computed as qty x unit_cost summed over all lines"
+      ]
+    },
+    {
+      "rubric": "Does the report give the correct inventory value per warehouse?",
+      "weight": 8,
+      "criterion": [
+        "East 11069.06",
+        "North 20479.69",
+        "South 15447.44"
+      ]
+    },
+    {
+      "rubric": "Does the report list exactly the SKUs strictly below their reorder point?",
+      "weight": 8,
+      "criterion": [
+        "Lists exactly: SKU-103, SKU-109, SKU-110 (in this order)",
+        "Does NOT list SKU-105, whose qty equals its reorder point"
+      ]
+    },
+    {
+      "rubric": "Does the report identify the most valuable stock line?",
+      "weight": 4,
+      "criterion": [
+        "SKU-112 Spring L with value 7581.90"
+      ]
+    }
+  ]
+}

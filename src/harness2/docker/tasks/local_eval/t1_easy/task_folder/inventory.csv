@@ -1,0 +1,21 @@
+sku,name,warehouse,qty,unit_cost,reorder_point
+SKU-101,Bolt M6,North,231,22.97,100
+SKU-102,Bolt M8,South,231,20.85,150
+SKU-103,Nut M6,East,97,7.61,150
+SKU-104,Nut M8,North,243,7.67,25
+SKU-105,Washer 6mm,South,50,12.47,50
+SKU-106,Washer 8mm,East,46,22.11,25
+SKU-107,Bracket L,North,304,16.27,100
+SKU-108,Bracket T,South,334,6.50,150
+SKU-109,Hinge 40,East,7,21.69,25
+SKU-110,Hinge 60,North,30,1.51,50
+SKU-111,Spring S,South,123,24.61,25
+SKU-112,Spring L,East,398,19.05,75
+SKU-113,Gasket A,North,225,24.25,50
+SKU-114,Gasket B,South,265,9.62,75
+SKU-115,Clamp 20,East,255,0.23,25
+SKU-116,Clamp 32,North,234,11.44,100
+SKU-117,Rivet 4,South,282,3.45,75
+SKU-118,Rivet 5,East,161,9.45,150
+SKU-119,Pin 3x20,North,147,1.26,25
+SKU-120,Pin 4x30,South,288,4.47,100

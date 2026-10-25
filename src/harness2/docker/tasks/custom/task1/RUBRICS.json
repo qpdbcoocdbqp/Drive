@@ -1,0 +1,39 @@
+{
+  "rubrics": [
+    {
+      "rubric": "Does the summary report the correct net monthly total of 2086.80?",
+      "weight": 10,
+      "criterion": [
+        "The net total is stated as 2086.80 (expenses 2896.80 minus refunds 810.00)",
+        "The total is given to two decimal places"
+      ]
+    },
+    {
+      "rubric": "Does the per-category table give the correct net totals sorted largest to smallest?",
+      "weight": 8,
+      "criterion": [
+        "Infrastructure 1350.00",
+        "Travel 410.00",
+        "Supplies 197.40",
+        "Meals 129.40",
+        "Rows are ordered Infrastructure, Travel, Supplies, Meals"
+      ]
+    },
+    {
+      "rubric": "Does the summary identify vendors with both an expense and a refund?",
+      "weight": 6,
+      "criterion": [
+        "Lists CloudHost with net 1350.00",
+        "Lists OfficeMart with net 65.40",
+        "Lists AirFly with net 0.00"
+      ]
+    },
+    {
+      "rubric": "Does the note flag the duplicated CafeBean row on 2026-09-12?",
+      "weight": 4,
+      "criterion": [
+        "Mentions the two identical CafeBean 45.60 rows on 2026-09-12 as a possible duplicate"
+      ]
+    }
+  ]
+}

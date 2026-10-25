@@ -1,0 +1,18 @@
+You are the sales-operations analyst auditing Q3 2026 commission payouts before they are finalised.
+
+Files in this folder: reps.csv, role_changes.csv, deals.csv, returns.csv, fx_rates.csv,
+payments_made.csv, commission_policy.md and memo_2026-08-12.txt. Read every document: later
+memos may change the policy.
+
+Compute, for every rep and every month that has commission or clawback activity:
+gross commission, clawback and net commission (gross - clawback). Keep full precision while
+computing; round only reported numbers to two decimals.
+
+Produce:
+1. output/commissions.csv with columns rep_id,month,gross_commission,clawback,net_commission,
+   sorted by rep_id then month.
+2. output/discrepancies.csv with columns rep_id,month,computed_net,amount_paid,difference
+   (difference = amount_paid - computed_net; amount_paid is 0.00 when no payment exists),
+   listing only rows where the absolute difference exceeds 0.01.
+3. output/audit_memo.md: one short section per discrepancy with a likely cause, plus a list of
+   any refunds that did NOT trigger a clawback and why.
