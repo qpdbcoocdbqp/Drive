@@ -1,35 +1,53 @@
 {
   "rubrics": [
     {
-      "rubric": "Does the report give the correct overall inventory value of 46996.19 USD?",
-      "weight": 10,
+      "rubric": "Does output/report.md give the correct overall inventory value?",
+      "weight": 9,
       "criterion": [
-        "Overall total is 46996.19",
-        "Value is computed as qty x unit_cost summed over all lines"
+        "overall total inventory value is 46996.19 USD"
       ]
     },
     {
-      "rubric": "Does the report give the correct inventory value per warehouse?",
-      "weight": 8,
+      "rubric": "Does output/report.md give the correct inventory value for the East warehouse?",
+      "weight": 3,
       "criterion": [
-        "East 11069.06",
-        "North 20479.69",
-        "South 15447.44"
+        "East is 11069.06 USD"
       ]
     },
     {
-      "rubric": "Does the report list exactly the SKUs strictly below their reorder point?",
-      "weight": 8,
+      "rubric": "Does output/report.md give the correct inventory value for the North warehouse?",
+      "weight": 3,
       "criterion": [
-        "Lists exactly: SKU-103, SKU-109, SKU-110 (in this order)",
-        "Does NOT list SKU-105, whose qty equals its reorder point"
+        "North is 20479.69 USD"
       ]
     },
     {
-      "rubric": "Does the report identify the most valuable stock line?",
+      "rubric": "Does output/report.md give the correct inventory value for the South warehouse?",
+      "weight": 3,
+      "criterion": [
+        "South is 15447.44 USD"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md list the SKUs strictly below their reorder point?",
+      "weight": 6,
+      "criterion": [
+        "the list is exactly SKU-103, SKU-109, SKU-110, in this order"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md leave out the SKU whose qty equals its reorder point?",
+      "weight": 2,
+      "criterion": [
+        "SKU-105 is NOT in the below-reorder-point list"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md identify the stock line with the highest inventory value?",
       "weight": 4,
       "criterion": [
-        "SKU-112 Spring L with value 7581.90"
+        "the line is SKU-112 (Spring L)",
+        "its value is 7581.90 USD"
       ]
     }
   ]
