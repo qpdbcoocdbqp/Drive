@@ -54,6 +54,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     i.add_argument("--name", default="", help="output folder under improve/ (default: the dim, lowercased)")
     i.add_argument("--retries", type=int, default=2, help="re-asks per step after a rejected answer")
     i.add_argument("--no-think", action="store_true", help="turn the model's reasoning off (faster)")
+    i.add_argument("--checker-model", default="", help="model for the two checker scripts only (default: the improver model)")
     for p in (s, j, i):
         p.add_argument("--model", default="", help="override this role's model (e.g. local/fable)")
         p.add_argument("tasks", nargs="+" if p is not i else 1, metavar="TASK")
@@ -156,8 +157,11 @@ def notes_md(res: dict) -> str:
                                                   ensure_ascii=False)[:400] for s in res.get("steps", [])]
     diffs = res.get("diffs")
     if diffs is not None:
+        c = res.get("checker") or {}
+        lines += ["", f"## checker: two scripts agree on {c.get('agreed')} of {max(c.get('a', 0), c.get('b', 0))} figures", ""]
+        lines += [f"- not verified, left out of the comparison: {n}" for n in c.get("unverified", [])[:10]]
         lines += ["", f"## DIFF ({len(diffs)})", ""] + [
-            f"- {d['name']}: reported {d['reported']}, recomputed {d['recomputed']}" for d in diffs[:30]]
+            f"- [{d['kind']}] {d['name']}: reported {d['reported']}, recomputed {d['recomputed']}" for d in diffs[:30]]
     if res.get("facts"):
         lines += ["", "## how the agent worked (facts, from code)", "", improver.facts_text(res["facts"])]
     if res.get("locate"):
@@ -167,19 +171,18 @@ def notes_md(res: dict) -> str:
     if res.get("general"):
         lines += ["", "## general problem", "", f"{res['general']['category']}: {res['general']['problem']}"]
     if res.get("edit"):
-        e, rv = res["edit"], res.get("review") or {}
+        e = res["edit"]
         lines += ["", f"## change to {res['target']}", "", f"action: {e['action']} {e['ids'] or ''}".rstrip()]
         lines += [f"was: {b}" for b in e["before"]] + [f"now: {e['text']}"]
-        lines += ["", f"review ({rv.get('by')}): rules {rv.get('rules')}, chars {rv.get('chars')}"]
-        lines += [f"- merged {m['ids']}: {m['text']}" for m in rv.get("merge", [])]
-        lines += [f"- deleted {d}" for d in rv.get("delete", [])]
-    if res.get("rules"):
-        lines += ["", f"## rules in {res['target']}: {len(res['rules']['before'])} -> {len(res['rules']['after'])}", ""]
-        lines += [f"{i}: {t}" for i, t in res["rules"]["after"].items()]
-    if res.get("adopt"):
-        lines += ["", "## adopted from candidates", "", json.dumps(res["adopt"], ensure_ascii=False)[:1500]]
     if res.get("scores"):
         lines += ["", "## candidates (DIFF count)", "", json.dumps(res["scores"]), f"adopted: {res.get('adopted')}"]
+    for f, rv in (res.get("reviews") or {}).items():
+        lines += ["", f"## review of {f} ({rv.get('by')}): rules {rv.get('rules')}, chars {rv.get('chars')}", ""]
+        lines += [f"- merged {m['ids']}: {m['text']}" for m in rv.get("merge", [])]
+        lines += [f"- deleted {d}" for d in rv.get("delete", [])]
+    for f, rr in (res.get("rules") or {}).items():
+        lines += ["", f"## rules in {f}: {len(rr['before'])} -> {len(rr['after'])}", ""]
+        lines += [f"{i}: {t}" for i, t in rr["after"].items()]
     return "\n".join(lines) + "\n"
 
 
@@ -208,7 +211,7 @@ def improve(a: argparse.Namespace) -> int:
     try:
         res.update(improver.run(jb=jb, task=t, dim=a.dim, base_tree=base_tree, rollout=run_view(a.rollout, t),
                                 candidates=candidates, work=work, model=config.IMPROVER_MODEL,
-                                think=not a.no_think, retries=a.retries))
+                                think=not a.no_think, retries=a.retries, checker_model=a.checker_model))
         res["status"] = "changed" if res["changed"] else "unchanged"
     except improver.StepFailed as e:
         res.update(status="failed", error=str(e))
