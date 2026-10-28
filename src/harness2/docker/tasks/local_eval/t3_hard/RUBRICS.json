@@ -1,57 +1,115 @@
 {
   "rubrics": [
     {
-      "rubric": "Is the total Q3 net commission across all reps 16650.39?",
-      "weight": 8,
+      "rubric": "Is output/commissions.csv in the requested layout?",
+      "weight": 3,
       "criterion": [
-        "Sum of net_commission over all rows is 16650.39 (within 0.05 for rounding)"
+        "Header is exactly rep_id,month,gross_commission,clawback,net_commission",
+        "Rows are sorted by rep_id, then month",
+        "It has exactly 13 rows: R1 2026-07..2026-10, R2 2026-08..2026-09, R3 2026-07..2026-09 and 2026-11, R4 2026-07..2026-09"
       ]
     },
     {
-      "rubric": "Does output/commissions.csv contain the correct gross, clawback and net per rep and month?",
-      "weight": 14,
+      "rubric": "Does output/commissions.csv give the correct gross for months with no special rule?",
+      "weight": 3,
       "criterion": [
-        "Columns rep_id,month,gross_commission,clawback,net_commission sorted by rep then month",
-        "R1 2026-07: gross 200.00, clawback 0.00, net 200.00",
-        "R1 2026-08: gross 1760.74, clawback 0.00, net 1760.74",
-        "R1 2026-09: gross 841.01, clawback 0.00, net 841.01",
-        "R1 2026-10: gross 0.00, clawback 50.19, net -50.19",
-        "R2 2026-08: gross 951.00, clawback 0.00, net 951.00",
-        "R2 2026-09: gross 3787.41, clawback 0.00, net 3787.41",
-        "R3 2026-07: gross 1602.88, clawback 172.50, net 1430.38",
-        "R3 2026-08: gross 2369.00, clawback 0.00, net 2369.00",
-        "R3 2026-09: gross 1911.03, clawback 0.00, net 1911.03",
-        "R3 2026-11: gross 0.00, clawback 357.00, net -357.00",
-        "R4 2026-07: gross 702.00, clawback 0.00, net 702.00",
-        "R4 2026-08: gross 1707.00, clawback 0.00, net 1707.00",
-        "R4 2026-09: gross 1398.00, clawback 0.00, net 1398.00"
+        "R1 2026-07 gross is 200.00",
+        "R1 2026-09 gross is 841.01",
+        "R2 2026-08 gross is 951.00",
+        "R4 2026-07 gross is 702.00",
+        "R4 2026-08 gross is 1707.00",
+        "R4 2026-09 gross is 1398.00"
       ]
     },
     {
-      "rubric": "Are the policy edge cases applied?",
-      "weight": 8,
-      "criterion": [
-        "Marginal tiers: a deal crossing the monthly threshold is split between the two rates",
-        "R3 is paid on the Junior plan before 2026-08-11 and on the Senior plan from 2026-08-11",
-        "Junior upper tier is 8% for deals closed on or after 2026-08-15 (memo), 7% before",
-        "Split deals credit split_pct to the split rep and the remainder to the owner"
-      ]
-    },
-    {
-      "rubric": "Does output/discrepancies.csv list exactly the payout discrepancies?",
-      "weight": 10,
-      "criterion": [
-        "R1 2026-08: computed 1760.74, paid 1723.24, difference -37.50",
-        "R3 2026-08: computed 2369.00, paid 2489.00, difference 120.00",
-        "R4 2026-09: computed 1398.00, paid 0.00, difference -1398.00",
-        "No other rows are listed"
-      ]
-    },
-    {
-      "rubric": "Does the audit memo identify refunds without clawback?",
+      "rubric": "Does output/commissions.csv give the correct R3 2026-07 gross (a deal crosses the Junior threshold)?",
       "weight": 4,
       "criterion": [
-        "Names D-303, D-314 as refunded more than 60 days after close, so no clawback"
+        "R3 2026-07 gross is 1602.88"
+      ]
+    },
+    {
+      "rubric": "Does output/commissions.csv give the correct R1 2026-08 gross (memo: Junior upper tier 8% from 2026-08-15)?",
+      "weight": 4,
+      "criterion": [
+        "R1 2026-08 gross is 1760.74"
+      ]
+    },
+    {
+      "rubric": "Does output/commissions.csv give the correct R3 2026-08 gross (R3 becomes Senior on 2026-08-11)?",
+      "weight": 4,
+      "criterion": [
+        "R3 2026-08 gross is 2369.00"
+      ]
+    },
+    {
+      "rubric": "Does output/commissions.csv give the correct gross for the months with split deals?",
+      "weight": 4,
+      "criterion": [
+        "R2 2026-09 gross is 3787.41",
+        "R3 2026-09 gross is 1911.03"
+      ]
+    },
+    {
+      "rubric": "Does output/commissions.csv book the clawbacks correctly?",
+      "weight": 5,
+      "criterion": [
+        "R3 2026-07 clawback is 172.50",
+        "R1 2026-10 clawback is 50.19, with gross 0.00",
+        "R3 2026-11 clawback is 357.00, with gross 0.00",
+        "every other row has clawback 0.00"
+      ]
+    },
+    {
+      "rubric": "Is net_commission consistent in output/commissions.csv?",
+      "weight": 2,
+      "criterion": [
+        "On every row net_commission equals gross_commission minus clawback (within 0.01)"
+      ]
+    },
+    {
+      "rubric": "Is the total Q3 net commission correct?",
+      "weight": 3,
+      "criterion": [
+        "net_commission over all rows of output/commissions.csv sums to 16650.39 (within 0.01, so 16650.38 also passes)"
+      ]
+    },
+    {
+      "rubric": "Does output/discrepancies.csv list the R1 2026-08 discrepancy?",
+      "weight": 3,
+      "criterion": [
+        "R1 2026-08: computed_net 1760.74, amount_paid 1723.24, difference -37.50"
+      ]
+    },
+    {
+      "rubric": "Does output/discrepancies.csv list the R3 2026-08 discrepancy?",
+      "weight": 3,
+      "criterion": [
+        "R3 2026-08: computed_net 2369.00, amount_paid 2489.00, difference 120.00"
+      ]
+    },
+    {
+      "rubric": "Does output/discrepancies.csv list the unpaid R4 2026-09 month?",
+      "weight": 3,
+      "criterion": [
+        "R4 2026-09: computed_net 1398.00, amount_paid 0.00, difference -1398.00"
+      ]
+    },
+    {
+      "rubric": "Does output/discrepancies.csv list no other rows?",
+      "weight": 3,
+      "criterion": [
+        "Header is exactly rep_id,month,computed_net,amount_paid,difference",
+        "R1 2026-08, R3 2026-08 and R4 2026-09 are the only data rows"
+      ]
+    },
+    {
+      "rubric": "Does output/audit_memo.md list the refunds that did not trigger a clawback?",
+      "weight": 4,
+      "criterion": [
+        "D-303 is listed, refunded more than 60 days after close (75 days)",
+        "D-314 is listed, refunded more than 60 days after close (61 days)",
+        "No other refund is listed as having no clawback"
       ]
     }
   ]

@@ -1,45 +1,78 @@
 {
   "rubrics": [
     {
-      "rubric": "Is the total Q3 revenue reported as 32438.27 USD?",
-      "weight": 10,
-      "criterion": [
-        "Total is 32438.27",
-        "Only completed orders are counted, after removing duplicate rows and converting each order with its own month's rate"
-      ]
-    },
-    {
-      "rubric": "Does output/revenue.csv contain the correct region/month figures?",
-      "weight": 10,
-      "criterion": [
-        "Columns are region,month,revenue_usd, sorted by region then month",
-        "Region names are normalised (North, South, East, West)",
-        "East 2026-07: 5296.02",
-        "East 2026-08: 1504.44",
-        "East 2026-09: 4134.76",
-        "North 2026-07: 7371.98",
-        "North 2026-08: 3870.93",
-        "North 2026-09: 2697.00",
-        "South 2026-07: 916.19",
-        "South 2026-09: 2833.50",
-        "West 2026-07: 1322.13",
-        "West 2026-08: 2254.61",
-        "West 2026-09: 236.72"
-      ]
-    },
-    {
-      "rubric": "Does the summary name North as the top region?",
-      "weight": 4,
-      "criterion": [
-        "North with 13939.91 USD"
-      ]
-    },
-    {
-      "rubric": "Does the summary report the data-quality handling correctly?",
+      "rubric": "Does output/summary.md give the correct total Q3 revenue? The full-precision total rounds to 32438.27; the rounded rows of revenue.csv add up to 32438.28, so judge the stated total against 32438.27 and do not re-add the rows.",
       "weight": 6,
       "criterion": [
-        "2 duplicate rows removed (ORD-5006, ORD-5024)",
-        "Excludes ORD-5018 because customer C99 is not in customers.csv"
+        "total revenue for the quarter is 32438.27 USD"
+      ]
+    },
+    {
+      "rubric": "Is output/revenue.csv in the requested layout?",
+      "weight": 3,
+      "criterion": [
+        "Header is exactly region,month,revenue_usd",
+        "Regions are written East, North, South, West (no stray case or spaces) and months as YYYY-MM",
+        "Rows are sorted by region, then month"
+      ]
+    },
+    {
+      "rubric": "Does output/revenue.csv give the correct East figures?",
+      "weight": 3,
+      "criterion": [
+        "East 2026-07 is 5296.02",
+        "East 2026-08 is 1504.44",
+        "East 2026-09 is 4134.76"
+      ]
+    },
+    {
+      "rubric": "Does output/revenue.csv give the correct North figures?",
+      "weight": 3,
+      "criterion": [
+        "North 2026-07 is 7371.98",
+        "North 2026-08 is 3870.93",
+        "North 2026-09 is 2697.00"
+      ]
+    },
+    {
+      "rubric": "Does output/revenue.csv give the correct South figures?",
+      "weight": 3,
+      "criterion": [
+        "South 2026-07 is 916.19",
+        "South 2026-09 is 2833.50",
+        "South 2026-08 is absent or zero"
+      ]
+    },
+    {
+      "rubric": "Does output/revenue.csv give the correct West figures?",
+      "weight": 3,
+      "criterion": [
+        "West 2026-07 is 1322.13",
+        "West 2026-08 is 2254.61",
+        "West 2026-09 is 236.72"
+      ]
+    },
+    {
+      "rubric": "Does output/summary.md name the correct top region?",
+      "weight": 3,
+      "criterion": [
+        "the top region is North"
+      ]
+    },
+    {
+      "rubric": "Does output/summary.md report the duplicate rows correctly?",
+      "weight": 3,
+      "criterion": [
+        "2 duplicate rows were removed",
+        "the duplicated orders are ORD-5006 and ORD-5024"
+      ]
+    },
+    {
+      "rubric": "Does output/summary.md report the excluded order correctly?",
+      "weight": 3,
+      "criterion": [
+        "ORD-5018 is the only completed order excluded",
+        "the reason given is that the order's customer is missing from customers.csv (naming the customer id is optional)"
       ]
     }
   ]
