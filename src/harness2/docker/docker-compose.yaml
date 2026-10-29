@@ -92,9 +92,17 @@ configs:
     content: |
       events {}
       stream {
+        # Docker DNS returns host.docker.internal as IPv4 + IPv6 and the IPv6 route is dead
+        # ("Network unreachable"). A variable in proxy_pass makes nginx resolve at runtime
+        # through this resolver, which can drop AAAA records.
+        resolver 127.0.0.11 ipv6=off valid=30s;
+        # $$ = literal $ (compose would otherwise interpolate it)
+        map "" $$llm_upstream {
+          default ${HARNESS2_LLM_UPSTREAM:-host.docker.internal:19001};
+        }
         server {
           listen 19001;
-          proxy_pass ${HARNESS2_LLM_UPSTREAM:-host.docker.internal:19001};
+          proxy_pass $$llm_upstream;
           proxy_timeout 1h;
         }
       }
