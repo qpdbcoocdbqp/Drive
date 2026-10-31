@@ -1,0 +1,10 @@
+You are reconciling this month's company expense ledger before the books close.
+
+The file expenses.csv in this folder lists every transaction (date, vendor, category, amount).
+Positive amounts are expenses; negative amounts are refunds.
+
+Produce output/summary.md containing:
+1. The net total for the month (expenses minus refunds), to two decimal places.
+2. A table of net totals per category, sorted from largest to smallest.
+3. Any vendor that appears with both an expense and a refund, and the net amount for that vendor.
+4. A one-paragraph note on anything that looks unusual (for example duplicate rows).

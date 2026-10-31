@@ -1,0 +1,19 @@
+You are the revenue analyst closing Q3 2026 (July-September).
+
+Files in this folder:
+- orders.csv: one row per order. order_id is unique by design; the export sometimes repeats a row.
+  order_date is either ISO (YYYY-MM-DD) or day-first (DD/MM/YYYY). unit_price is in the order's currency.
+- customers.csv: the sales region of each customer.
+- fx_rates.csv: USD value of one unit of each currency, per calendar month.
+
+Rules:
+- Only orders whose status is "completed" count as revenue (status text may vary in case and spacing).
+- Order revenue = quantity x unit_price, converted to USD with the rate of the order's month.
+- Region names must be normalised (they vary in case and spacing in customers.csv).
+- Exclude completed orders whose customer is not in customers.csv, and report them.
+- Keep full precision while computing; round only the reported numbers to two decimals.
+
+Produce:
+1. output/revenue.csv with columns region,month,revenue_usd (month as YYYY-MM), sorted by region then month.
+2. output/summary.md stating: total Q3 revenue in USD, the region with the highest Q3 revenue,
+   how many duplicate rows were removed, and which completed orders were excluded and why.

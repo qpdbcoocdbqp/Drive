@@ -1,0 +1,54 @@
+{
+  "rubrics": [
+    {
+      "rubric": "Does output/report.md give the correct overall inventory value?",
+      "weight": 9,
+      "criterion": [
+        "overall total inventory value is 46996.19 USD"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md give the correct inventory value for the East warehouse?",
+      "weight": 3,
+      "criterion": [
+        "East is 11069.06 USD"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md give the correct inventory value for the North warehouse?",
+      "weight": 3,
+      "criterion": [
+        "North is 20479.69 USD"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md give the correct inventory value for the South warehouse?",
+      "weight": 3,
+      "criterion": [
+        "South is 15447.44 USD"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md list the SKUs strictly below their reorder point?",
+      "weight": 6,
+      "criterion": [
+        "the list is exactly SKU-103, SKU-109, SKU-110, in this order"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md leave out the SKU whose qty equals its reorder point?",
+      "weight": 2,
+      "criterion": [
+        "SKU-105 is NOT in the below-reorder-point list"
+      ]
+    },
+    {
+      "rubric": "Does output/report.md identify the stock line with the highest inventory value?",
+      "weight": 4,
+      "criterion": [
+        "the line is SKU-112 (Spring L)",
+        "its value is 7581.90 USD"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+# docker compose run --rm harness2                       # demo (no credentials)
+# docker compose run --rm harness2 bash                  # interactive shell
+# docker compose run --rm harness2 harness2-setup jb     # install a benchmark into the volume
+# docker compose build harness2 sandbox                  # images, incl. the executor sandbox
+services:
+  harness2:
+    build:
+      context: .
+      args:
+        INSTALL_GCLOUD: ${INSTALL_GCLOUD:-1}
+        HARNESS2_EXTRAS: ${HARNESS2_EXTRAS:-render}
+    image: harness2:local
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"   # keep __pycache__ out of ./module
+      # Where harness2/sandbox.py puts executors when HARNESS2_SANDBOX=docker (harness2.env).
+      HARNESS2_SANDBOX_IMAGE: harness2-sandbox:local
+      HARNESS2_SANDBOX_NETWORK: harness2-sandbox   # networks.sandbox.name
+      HARNESS2_SANDBOX_DEPS_VOLUME: docker_deps    # volumes.deps.name
+    env_file:
+      - path: harness2.env
+        required: false
+    extra_hosts:
+      # Reach a model server on the host (vLLM/Ollama) at http://host.docker.internal:<port>
+      - host.docker.internal:host-gateway
+    # default: internet for setup and remote APIs; sandbox: llm-proxy, shared with the executors
+    networks: [default, sandbox]
+    depends_on: [llm-proxy]
+    # Docker Desktop's socket is root:root 0660
+    group_add: ["0"]
+    volumes:
+      # harness2 source from the host (editable install): clone + apply provider-refactor.patch, see ../README.md section 1
+      - ./module:/opt/harness2
+      # Benchmark checkouts/data stay in a Linux volume (large, needs symlinks + chmod)
+      - deps:/opt/harness2/dependencies
+      - ./runs:/opt/harness2/runs
+      # Your own tasks in JobBench format (<domain>/<task>/task_folder/TASK_INSTRUCTIONS.txt + RUBRICS.json)
+      - ./tasks:/opt/harness2/tasks:ro
+      # Our own scripts that drive harness2 without changing it (e.g. tools/eval_harness.py)
+      - ./tools:/opt/tools:ro
+      # Vertex AI: gcloud Application Default Credentials from the host.
+      # Linux/macOS: ~/.config/gcloud   Windows: %APPDATA%/gcloud
+      - ${GCLOUD_CONFIG_DIR:-~/.config/gcloud}:/home/harness/.config/gcloud
+      # Starts the executor sandboxes on the host engine. Equivalent to root on the Docker host:
+      # only this container gets it, a sandbox never does.
+      - /var/run/docker.sock:/var/run/docker.sock
+    stdin_open: true
+    tty: true
+
+  harness2-api:
+    # Resident HTTP API in front of the harness2 CLI (api/server.py, ../README.md section 6).
+    # Same image, env file and mounts as harness2. It holds the Docker socket, so it is only
+    # published on the loopback interface; set HARNESS2_API_TOKEN in harness2.env to require a token.
+    extends:
+      service: harness2
+    entrypoint: []   # no session for the server itself: each job is its own session
+    command: ["python", "/opt/api/server.py"]
+    ports:
+      - "127.0.0.1:${HARNESS2_API_PORT:-8765}:8765"
+    volumes:
+      - ./api:/opt/api:ro
+    networks: [default, sandbox]
+    depends_on: [llm-proxy]
+    restart: unless-stopped
+    stdin_open: false
+    tty: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  llm-proxy:
+    # The only way out of the sandbox network: a TCP pass-through to the model server.
+    image: nginx:1.29-alpine
+    configs:
+      - source: llm-proxy
+        target: /etc/nginx/nginx.conf
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks: [default, sandbox]
+
+  sandbox:
+    # Image only, never started: what each executor runs in (Dockerfile.sandbox).
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    image: harness2-sandbox:local
+    profiles: [sandbox]
+
+configs:
+  llm-proxy:
+    content: |
+      events {}
+      stream {
+        # Docker DNS returns host.docker.internal as IPv4 + IPv6 and the IPv6 route is dead
+        # ("Network unreachable"). A variable in proxy_pass makes nginx resolve at runtime
+        # through this resolver, which can drop AAAA records.
+        resolver 127.0.0.11 ipv6=off valid=30s;
+        # $$ = literal $ (compose would otherwise interpolate it)
+        map "" $$llm_upstream {
+          default ${HARNESS2_LLM_UPSTREAM:-host.docker.internal:19001};
+        }
+        server {
+          listen 19001;
+          proxy_pass $$llm_upstream;
+          proxy_timeout 1h;
+        }
+      }
+
+networks:
+  sandbox:
+    # No route out; harness2/sandbox.py attaches every executor container here by name.
+    name: harness2-sandbox
+    internal: true
+
+volumes:
+  deps:
+    # Fixed name (compose's default for this directory): sandboxes mount its opencode/ and tools/.
+    name: docker_deps

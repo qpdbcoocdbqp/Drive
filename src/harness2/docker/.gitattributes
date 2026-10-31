@@ -1,0 +1,2 @@
+# Run inside Linux containers: CRLF would break them (core.autocrlf=true on Windows checkouts).
+*.sh text eol=lf
