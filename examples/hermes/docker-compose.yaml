@@ -19,6 +19,7 @@ services:
       - ${PACKAGE_DIR:-.}:/opt/package
     ports:
       - "8642:8642"
+      - "9119:9119" # dashboard shares this network namespace
     environment:
       - HERMES_ALLOW_ROOT_GATEWAY=1
       - GATEWAY_ALLOW_ALL_USERS=1
@@ -27,8 +28,8 @@ services:
       - HERMES_WRITE_SAFE_ROOT=${HERMES_WRITE_SAFE_ROOT:-}
       - API_SERVER_HOST=0.0.0.0
       - FIRECRAWL_API_URL=${FIRECRAWL_API_URL:-}
-      - HERMES_UID=${HERMES_UID:-1000}
-      - HERMES_GID=${HERMES_GID:-1000}
+      - HERMES_UID=${HERMES_UID:-10000}
+      - HERMES_GID=${HERMES_GID:-10000}
       - HERMES_LANGFUSE_PUBLIC_KEY=${HERMES_LANGFUSE_PUBLIC_KEY:-}
       - HERMES_LANGFUSE_SECRET_KEY=${HERMES_LANGFUSE_SECRET_KEY:-}
       - HERMES_LANGFUSE_BASE_URL=${HERMES_LANGFUSE_BASE_URL:-}
@@ -44,15 +45,14 @@ services:
     image: nousresearch/hermes-agent:v0.23.0
     container_name: hermes-dashboard
     restart: unless-stopped
-    ports:
-      - "9119:9119"
+    network_mode: "service:hermes-gateway" # share 127.0.0.1 with gateway (TUI ws)
     depends_on:
       - hermes-gateway
     volumes:
       - ${HERMES_DATA_DIR:-~/.hermes}:/opt/data
     environment:
-      - HERMES_UID=${HERMES_UID:-1000}
-      - HERMES_GID=${HERMES_GID:-1000}
+      - HERMES_UID=${HERMES_UID:-10000}
+      - HERMES_GID=${HERMES_GID:-10000}
       - HERMES_DASHBOARD_INSECURE=1
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-admin}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}
