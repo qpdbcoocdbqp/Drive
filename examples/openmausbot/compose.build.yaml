@@ -1,0 +1,20 @@
+# Builds images only, separate from running them:
+#
+#   docker compose -f compose.build.yaml build      # build / update images
+#   docker compose up -d                            # run (compose.yaml has no build, so this never triggers one)
+#
+# After changing any Dockerfile or netmon/image/monitor.sh, rebuild first, then run up -d so the containers pick up the new image.
+name: openmausbot-build
+
+services:
+  omb:
+    build: ./docker/omb
+    image: openmausbot-local:latest
+
+  llm-forward:
+    build: ./docker/llm-forward
+    image: omb-llm-forward:local
+
+  netmon:
+    build: ./netmon/image
+    image: omb-netmon:local

@@ -1,0 +1,206 @@
+# OpenMausBot local deployment (standalone: no dependency on an OpenMausBot source checkout). See Drive/plan.md, Phase 1.
+#
+#   cd examples/openmausbot
+#   docker compose -f compose.build.yaml build   # build images (Dockerfiles are in docker/ and netmon/image/)
+#   docker compose up -d                         # run only; this file has no build, and local images are never pulled from a registry
+#   docker compose exec omb openmausbot pair
+#   python netmon/netmon_report.py
+#
+# Source: upstream milind-soni/OpenMausBot v0.1.158 compose.yaml + deploy/local/Caddyfile (Apache-2.0),
+# plus local hardening: pinned image digest, usage analytics off by default, local engines only, traffic monitor, loopback forwarding.
+# Upgrade: change BASE_IMAGE / ENGINES in docker/omb/Dockerfile, diff against upstream compose.yaml / Caddyfile, rebuild, re-run Trivy.
+#
+# Project and volume names stay "openmausbot"; data (bots, conversations, engine settings) lives in openmausbot_data.
+name: ${COMPOSE_PROJECT_NAME:-openmausbot}
+
+x-netmon: &netmon
+  image: omb-netmon:local
+  pull_policy: never
+  restart: unless-stopped
+  # See netmon/image/monitor.sh. NET_ADMIN: conntrack events and iptables; NET_BIND_SERVICE: dnsmasq binds :53;
+  # SETUID/SETGID: dnsmasq drops to its own user after binding.
+  cap_drop: [ALL]
+  cap_add: [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+  tmpfs: [/tmp, /run]
+  volumes:
+    - ./netmon/logs:/logs
+  deploy:
+    resources:
+      limits:
+        memory: 128M
+        cpus: "0.25"
+        pids: 64
+
+services:
+  # ---------------------------------------------------------------- traffic monitor
+  # The monitor containers own the network namespaces; omb / caddy join them, so capture starts with the very first
+  # packet and survives an omb restart.
+  # If a monitor container stops, omb / caddy lose their network too (compose recreates them together).
+  netmon-omb:
+    <<: *netmon
+    # Docker's embedded DNS (127.0.0.11) forwards external lookups to dnsmasq on 127.0.0.1 inside this namespace,
+    # which logs them; omb and every container joining the namespace use it without any change.
+    dns: ["127.0.0.1"]
+    environment:
+      NETMON_NAME: omb
+      # Docker Desktop's DNS; on a Linux host use the host's resolver
+      NETMON_DNS_UPSTREAM: ${NETMON_DNS_UPSTREAM:-192.168.65.7}
+
+  netmon-edge:
+    <<: *netmon
+    environment:
+      NETMON_NAME: edge
+      # Caddy resolves nothing; only inbound connections are of interest here
+      NETMON_DNS: "off"
+    # Caddy's published port is declared on the container that owns the namespace
+    ports:
+      - "${OMB_BIND_ADDRESS:-127.0.0.1}:${OMB_HTTP_PORT:-8080}:80"
+
+  # ---------------------------------------------------------------- OpenMausBot server
+  omb:
+    # Reaps exited browser child processes; shared memory that Chrome needs (upstream docs/browser-packaging.md)
+    init: true
+    shm_size: 512m
+    # docker/omb/Dockerfile: base image pinned by digest, engine versions pinned, usage analytics off by default
+    image: ${OMB_LOCAL_IMAGE:-openmausbot-local:latest}
+    pull_policy: never
+    restart: unless-stopped
+    network_mode: "service:netmon-omb"
+    volumes:
+      - data:/data
+      - edge:/run/openmausbot
+    # Engine keys (signed in at startup), excluded from git; see secrets.env.example for a template
+    env_file:
+      - path: ./secrets.env
+        required: false
+    environment:
+      OMB_PORT: "8799"
+      OMB_WEBHOOK_PORT: "8800"
+      # Caddy runs in its own container and reaches the server over these two unix sockets (a request on a socket is never a local request)
+      OMB_TUNNEL_SOCKET: /run/openmausbot/http.sock
+      OMB_WEBHOOK_SOCKET: /run/openmausbot/hooks.sock
+      OMB_SERVER_NAME: ${OMB_SERVER_NAME:-mausbot-local}
+      OMB_PUBLIC_URL: ${OMB_PUBLIC_URL:-http://localhost:${OMB_HTTP_PORT:-8080}}
+      OMB_WEBHOOK_PUBLIC_URL: ${OMB_WEBHOOK_PUBLIC_URL:-${OMB_PUBLIC_URL:-http://localhost:${OMB_HTTP_PORT:-8080}}}
+      # "1" would pair phones through the author's MausBot Relay; deliberately left empty
+      OMB_PHONE_RELAY: ${OMB_PHONE_RELAY:-}
+      # Connected apps do not go through the author's Composio broker (set your own Composio key to use them)
+      OMB_COMPOSIO_BROKER: "off"
+      # Default engine: a local LLM through the built-in OpenAI-compatible engine (127.0.0.1 is llm-forward-local below)
+      OPENAI_COMPAT_URL: ${LOCAL_LLM_URL:-http://127.0.0.1:19001/v1}
+      OPENAI_COMPAT_MODEL: ${LOCAL_LLM_MODEL:-gemma-4-it}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8799/api/health', { signal: AbortSignal.timeout(4000) }).then(async r => { if (!r.ok || !(await r.text()).includes('openmausbot')) process.exit(1); }).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    depends_on:
+      netmon-omb:
+        condition: service_started
+      omb-init:
+        condition: service_completed_successfully
+      llm-forward-local:
+        condition: service_started
+      llm-forward-hermes:
+        condition: service_started
+
+  # One-shot: writes the default engines into config.json before omb starts (see seed-engines.mjs). After changing only seed-engines.mjs, restart omb as well.
+  omb-init:
+    image: ${OMB_LOCAL_IMAGE:-openmausbot-local:latest}
+    pull_policy: never
+    user: "1001:1001"   # maus, the same as omb, so config.json ends up with the right owner
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    entrypoint: ["node", "/seed/seed-engines.mjs"]
+    environment:
+      HOME: /data
+      SEED_HERMES_URL: ${HERMES_URL:-http://127.0.0.1:8642/v1}
+      SEED_HERMES_MODEL: ${HERMES_MODEL:-hermes-agent}
+    volumes:
+      - data:/data
+      - ./seed-engines.mjs:/seed/seed-engines.mjs:ro
+
+  # ---------------------------------------------------------------- loopback forwarding
+  # OpenMausBot requires endpoints that carry images / computer tools to be HTTPS or loopback (upstream server/drivers/chat-images.ts),
+  # and host.docker.internal is not loopback. So socat inside omb's network namespace forwards 127.0.0.1:PORT to the host.
+  # socat only relays TCP and never parses content; non-root, no capabilities, read-only.
+  llm-forward-local: &llm-forward
+    # docker/llm-forward/Dockerfile (ENTRYPOINT socat)
+    image: omb-llm-forward:local
+    pull_policy: never
+    network_mode: "service:netmon-omb"
+    user: "65001:65001"
+    cap_drop: [ALL]
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.25"
+          pids: 64
+    depends_on:
+      netmon-omb:
+        condition: service_started
+    command: ["TCP-LISTEN:19001,bind=127.0.0.1,fork,reuseaddr", "TCP:host.docker.internal:19001"]
+
+  llm-forward-hermes:
+    <<: *llm-forward
+    command: ["TCP-LISTEN:8642,bind=127.0.0.1,fork,reuseaddr", "TCP:host.docker.internal:8642"]
+
+  # ---------------------------------------------------------------- web entry point
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2}
+    restart: unless-stopped
+    network_mode: "service:netmon-edge"
+    environment:
+      OMB_HTTPS_HOST: ${OMB_HTTPS_HOST:-}
+      OMB_BIND_ADDRESS: ${OMB_BIND_ADDRESS:-127.0.0.1}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        export OMB_UPSTREAM_SCHEME=http
+        if [ -n "$$OMB_HTTPS_HOST" ] && [ "$$OMB_BIND_ADDRESS" != "127.0.0.1" ]; then
+          echo "OMB_HTTPS_HOST requires OMB_BIND_ADDRESS=127.0.0.1; forward HTTPS through a trusted local proxy." >&2
+          exit 1
+        fi
+        if [ -n "$$OMB_HTTPS_HOST" ]; then
+          export OMB_UPSTREAM_SCHEME=https
+        fi
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    # Starts together with the server without waiting for it to be healthy: Caddy reaches the server over a socket, so it works as soon as the server answers
+    depends_on:
+      netmon-edge:
+        condition: service_started
+      omb:
+        condition: service_started
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - edge:/run/openmausbot
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  data:
+    external: ${OMB_DATA_EXTERNAL:-false}
+    name: ${OMB_DATA_VOLUME:-${COMPOSE_PROJECT_NAME:-openmausbot}_data}
+  # The two sockets: in memory, recreated by the server at every start. Kept out of /data, which every bot's sandbox can see.
+  edge:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: mode=1777,size=1m
+  caddy_data:
+  caddy_config:

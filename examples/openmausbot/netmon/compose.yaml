@@ -1,0 +1,47 @@
+# OpenMausBot traffic monitor, attach mode: a standalone compose project that does not modify OpenMausBot itself.
+# Each monitor container joins the target container's network namespace and records connection events from outside.
+#
+#   docker compose up -d --build            # start after OpenMausBot is already running
+#   python netmon_report.py                 # show the summary report
+#
+# Limits of attach mode (the main ../compose.yaml does not have them):
+# - DNS logging is off: the target's resolver is fixed when it is created, so lookups cannot be routed through dnsmasq,
+#   and the report shows destination IPs without hostnames.
+# - The namespace changes when the target container is recreated or restarted, so restart the monitors too: docker compose restart
+name: omb-netmon
+
+x-netmon: &netmon
+  build: ./image
+  image: omb-netmon:local
+  restart: unless-stopped
+  # NET_ADMIN: conntrack events (see image/monitor.sh)
+  cap_drop: [ALL]
+  cap_add: [NET_ADMIN]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+  tmpfs: [/tmp, /run]
+  volumes:
+    - ./logs:/logs
+  deploy:
+    resources:
+      limits:
+        memory: 128M
+        cpus: "0.25"
+        pids: 64
+
+services:
+  # Outbound connections of the server and every engine CLI it starts (claude / codex / hermes ...)
+  netmon-omb:
+    <<: *netmon
+    network_mode: "container:${OMB_CONTAINER:-openmausbot-omb-1}"
+    environment:
+      NETMON_NAME: omb
+      NETMON_DNS: "off"
+
+  # Caddy: source IPs of browsers / phones connecting in (Caddy and the server talk over a unix socket, which omb's side cannot see)
+  netmon-edge:
+    <<: *netmon
+    network_mode: "container:${EDGE_CONTAINER:-openmausbot-caddy-1}"
+    environment:
+      NETMON_NAME: edge
+      NETMON_DNS: "off"
