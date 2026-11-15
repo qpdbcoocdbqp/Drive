@@ -6,12 +6,21 @@
 #   docker compose exec omb openmausbot pair
 #   python netmon/netmon_report.py
 #
+# The netmon dashboard (Grafana + Loki + Alloy, http://127.0.0.1:3301) is included below and starts with the same up -d.
+# First time only, create its admin password (up refuses to start without the file):
+#   python -c "import secrets,pathlib; pathlib.Path('netmon/dashboard/grafana_admin_password').write_text(secrets.token_urlsafe(32))"
+# Dashboard only: docker compose up -d loki alloy grafana
+#
 # Source: upstream milind-soni/OpenMausBot v0.1.158 compose.yaml + deploy/local/Caddyfile (Apache-2.0),
 # plus local hardening: pinned image digest, usage analytics off by default, local engines only, traffic monitor, loopback forwarding.
 # Upgrade: change BASE_IMAGE / ENGINES in docker/omb/Dockerfile, diff against upstream compose.yaml / Caddyfile, rebuild, re-run Trivy.
 #
 # Project and volume names stay "openmausbot"; data (bots, conversations, engine settings) lives in openmausbot_data.
 name: ${COMPOSE_PROJECT_NAME:-openmausbot}
+
+# Adds services only, so the netmon containers' config is unchanged and up -d never recreates them because of it.
+include:
+  - netmon/dashboard/compose.yaml
 
 x-netmon: &netmon
   image: omb-netmon:local
@@ -88,6 +97,10 @@ services:
       OMB_PHONE_RELAY: ${OMB_PHONE_RELAY:-}
       # Connected apps do not go through the author's Composio broker (set your own Composio key to use them)
       OMB_COMPOSIO_BROKER: "off"
+      # No background reads of upstream GitHub (raw.githubusercontent.com): the bundled model manifest / announcements
+      # (plus the last downloaded copy in /data) are used instead. The update check (/api/updates/check) has no switch.
+      OMB_DISABLE_MODEL_MANIFEST_FETCH: "1"
+      OMB_DISABLE_ANNOUNCEMENTS: "1"
       # Default engine: a local LLM through the built-in OpenAI-compatible engine (127.0.0.1 is llm-forward-local below)
       OPENAI_COMPAT_URL: ${LOCAL_LLM_URL:-http://127.0.0.1:19001/v1}
       OPENAI_COMPAT_MODEL: ${LOCAL_LLM_MODEL:-gemma-4-it}

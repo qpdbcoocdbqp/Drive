@@ -1,0 +1,76 @@
+// Tails netmon's logs (/logs/<name>-<kind>-YYYYMMDD.log, lines "<unix ts>\t<event>") into Loki.
+// Labels stay low-cardinality (job, name, kind); IPs, ports and DNS names are extracted at query time.
+
+local.file_match "netmon" {
+  path_targets = [
+    {"__path__" = "/logs/*-conn-*.log"},
+    {"__path__" = "/logs/*-dns-*.log"},
+  ]
+  sync_period = "10s"
+}
+
+// The labels come from the file name only, so text inside a DNS name can never turn into a connection record
+discovery.relabel "netmon" {
+  targets = local.file_match.netmon.targets
+
+  // Files whose name does not fit (e.g. NETMON_NAME with a dash) would arrive without name/kind: skip them
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/logs/[a-z0-9]+-(conn|dns)-[0-9]+\\.log"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/logs/([a-z0-9]+)-(conn|dns)-[0-9]+\\.log"
+    target_label  = "name"
+    replacement   = "$1"
+  }
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/logs/([a-z0-9]+)-(conn|dns)-[0-9]+\\.log"
+    target_label  = "kind"
+    replacement   = "$2"
+  }
+  rule {
+    target_label = "job"
+    replacement  = "netmon"
+  }
+}
+
+loki.source.file "netmon" {
+  targets    = discovery.relabel.netmon.output
+  forward_to = [loki.process.netmon.receiver]
+}
+
+loki.process "netmon" {
+  forward_to = [loki.write.local.receiver]
+
+  // DNS names come from the network: replace control characters (except tab) and bidi overrides, the same set as
+  // UNSAFE in netmon_report.py, before anything else reads the line (Grafana's logs panel renders ANSI sequences)
+  stage.replace {
+    expression = "([\\x{00}-\\x{08}\\x{0b}-\\x{1f}\\x{7f}-\\x{9f}\\x{200e}\\x{200f}\\x{202a}-\\x{202e}\\x{2066}-\\x{2069}])"
+    replace    = "?"
+  }
+
+  // The event time is netmon's timestamp, not the time Alloy read the line
+  stage.regex {
+    expression = "^(?P<ts>[0-9]+)\\t(?P<event>.*)$"
+  }
+  stage.timestamp {
+    source = "ts"
+    format = "Unix"
+  }
+  stage.output {
+    source = "event"
+  }
+
+  // The filename label (one stream per daily file, ~15 files per name/kind) is kept on purpose: Loki rejects entries
+  // more than max_chunk_age/2 (1h) older than the newest entry of their stream, so merging the daily files into one
+  // stream would drop older days when they are backfilled after a newer one, or after Alloy was down past midnight.
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

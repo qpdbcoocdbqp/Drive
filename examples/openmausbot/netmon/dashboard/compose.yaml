@@ -1,0 +1,142 @@
+# netmon dashboard: Grafana + Loki + Alloy over the logs that netmon writes to ../logs (resident or attach mode).
+# Included by the main ../../compose.yaml, so it starts with OpenMausBot; run compose from examples/openmausbot, not here.
+# Relative paths below resolve against this directory. See Drive/plan.md, Phase 1.6.
+#
+#   python -c "import secrets,pathlib; pathlib.Path('netmon/dashboard/grafana_admin_password').write_text(secrets.token_urlsafe(32))"   # first time only
+#   docker compose up -d        # http://127.0.0.1:3301 (user admin). Use 127.0.0.1, never localhost: OpenMausBot is on localhost.
+#
+# Threat model: omb may be compromised, and on Docker Desktop it reaches host ports through host.docker.internal,
+# so Grafana's login is the boundary. Loki and Alloy sit on an internal network only: no published port, no egress.
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+
+services:
+  loki:
+    <<: *hardening
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
+    user: "10001:10001"
+    command: ["-config.file=/etc/loki/config.yaml"]
+    networks: [backend]
+    tmpfs: [/tmp]
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+          pids: 256
+
+  alloy:
+    <<: *hardening
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
+    # The image runs as root by default; 473 is its own alloy user, which owns /var/lib/alloy/data
+    user: "473:473"
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    networks: [backend]
+    tmpfs: [/tmp]
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../logs:/logs:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on: [loki]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+          pids: 128
+
+  grafana:
+    <<: *hardening
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
+    user: "472:0"
+    # Fail closed: refuse to start without a real admin password (Grafana applies it only when it creates its DB;
+    # rotate later with: docker compose exec grafana grafana cli admin reset-admin-password <new>)
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        p="$$(cat /run/secrets/grafana_admin_password 2>/dev/null || true)"
+        if [ "$${#p}" -lt 20 ] || [ "$$p" = admin ]; then
+          echo "grafana_admin_password is missing or shorter than 20 characters; see compose.yaml" >&2
+          exit 1
+        fi
+        unset p
+        exec /run.sh
+    secrets: [grafana_admin_password]
+    ports:
+      - "127.0.0.1:${NETMON_UI_PORT:-3301}:3000"
+    networks: [backend, frontend]
+    tmpfs: [/tmp]
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    environment:
+      GF_LOG_MODE: console
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      # Login form only (brute-force lockout stays on); no anonymous access, no sign-up, no Basic auth on the API
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      # Cookies are scoped by host name, not port: keep Grafana on 127.0.0.1 so its session cookie is never sent to
+      # OpenMausBot on localhost (a localhost:3301 request is redirected before any cookie is set)
+      GF_SERVER_DOMAIN: 127.0.0.1
+      GF_SERVER_ROOT_URL: http://127.0.0.1:${NETMON_UI_PORT:-3301}/
+      GF_SERVER_ENFORCE_DOMAIN: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_ALLOW_EMBEDDING: "false"
+      # Even a stolen admin session cannot add a datasource that reaches other host services (Hermes, llama-swap)
+      GF_SECURITY_DATA_SOURCE_PROXY_WHITELIST: loki:3100
+      # No outbound calls
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_FEEDBACK_LINKS_ENABLED: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    depends_on: [loki]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+          pids: 256
+
+secrets:
+  grafana_admin_password:
+    file: ./grafana_admin_password
+
+networks:
+  # Loki and Alloy: no route out, unreachable from the host and from omb
+  backend:
+    internal: true
+  # Grafana only, for the published port
+  frontend:
+
+# Names fixed to those of the former standalone project (omb-netmon-ui), so Grafana's DB (admin password), Loki's data
+# and Alloy's read positions carry over instead of being recreated under the main project's name.
+volumes:
+  loki_data:
+    name: omb-netmon-ui_loki_data
+  alloy_data:
+    name: omb-netmon-ui_alloy_data
+  grafana_data:
+    name: omb-netmon-ui_grafana_data

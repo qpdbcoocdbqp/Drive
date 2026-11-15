@@ -20,9 +20,9 @@ from pathlib import Path
 
 # Destinations that deserve attention (regex matched against the hostname)
 FLAGS: list[tuple[str, re.Pattern[str]]] = [
-    ("AUTHOR", re.compile(r"(^|\.)(openmausbot\.com|mausbot\.(com|page))$|^omb-[a-z0-9-]+\.fly\.dev$|milindsoni201\.workers\.dev$")),
-    ("TELEMETRY", re.compile(r"(^|\.)(posthog\.com|sentry\.io|statsig(api)?\.(com|net)|segment\.io|datadoghq\.com)$")),
-]
+    ("AUTHOR", re.compile(r"(^|\.)(openmausbot\.com|mausbot\.(com|page))$|^omb-[a-z0-9-]+\.fly\.dev$|milindsoni201\.workers\.dev$", re.IGNORECASE)),
+    ("TELEMETRY", re.compile(r"(^|\.)(posthog\.com|sentry\.io|statsig(api)?\.(com|net)|segment\.io|datadoghq\.com)$", re.IGNORECASE)),
+]  # DNS names are case-insensitive
 
 # DNS names come from the network: strip control characters and bidi override characters before printing to the
 # terminal (prevents ANSI escape sequence injection)

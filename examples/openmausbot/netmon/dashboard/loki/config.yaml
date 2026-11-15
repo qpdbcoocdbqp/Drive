@@ -1,0 +1,54 @@
+# Single-binary Loki on the local filesystem. Only Alloy (push) and Grafana (query) reach it, over the internal network.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Same as netmon's NETMON_RETENTION_DAYS (14 days)
+  retention_period: 336h
+  reject_old_samples: true
+  # A daily file survives monitor.sh's `find -mtime +14` for up to ~15 days and its first line is up to a day older
+  # than its mtime: accept 16 days so a backfill never drops part of a file that is still on disk
+  reject_old_samples_max_age: 384h
+  # Records cannot be erased through the delete API
+  deletion_mode: disabled
+
+ingester:
+  # Query the ingester for the whole range: on first start Alloy backfills files up to 14 days old, and those entries
+  # sit in the ingester until flushed. With a filesystem store Loki sets this window automatically (~2h41m), which
+  # takes precedence over querier.query_ingesters_within, so backfilled entries would stay invisible until flushed.
+  query_store_max_look_back_period: -1
+
+compactor:
+  working_directory: /loki/compactor
+  # Retention is enforced by the compactor only
+  retention_enabled: true
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

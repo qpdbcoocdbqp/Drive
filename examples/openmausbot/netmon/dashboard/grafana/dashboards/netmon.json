@@ -1,0 +1,720 @@
+{
+  "uid": "netmon",
+  "title": "OpenMausBot netmon",
+  "description": "Connections and DNS lookups recorded by netmon (conntrack + dnsmasq). See plan.md Phase 1.6.",
+  "tags": [
+    "netmon"
+  ],
+  "editable": false,
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "name": "name",
+        "type": "custom",
+        "query": "omb,edge",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": false,
+        "label": "netmon"
+      },
+      {
+        "name": "kind",
+        "type": "custom",
+        "query": "conn,dns",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": false,
+        "label": "kind"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "omb outbound connections",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum(count_over_time({job=\"netmon\", name=\"omb\", kind=\"conn\"} | regexp `\\[NEW\\]\\s+(?:ipv[46]\\s+\\d+\\s+)?(?P<proto>[a-z0-9]+)\\s+\\d+\\s.*?src=(?P<src>\\S+) dst=(?P<dst>\\S+)(?: sport=\\d+ dport=(?P<dport>\\d+)| type=(?P<icmptype>\\d+))?` | src != \"\" | dst != \"\" | src !~ \"127\\\\..*|::1\" | dst !~ \"127\\\\..*|::1\" | label_format dport=\"{{ or .dport .icmptype }}\" | dst !~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" or src =~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" [$__range])) or vector(0)",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "DNS queries",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum(count_over_time({job=\"netmon\", kind=\"dns\"} |= \"query[\" | regexp `\\d+ \\S+ query\\[(?P<qtype>\\w+)\\] (?P<qname>\\S+) from ` | qname != \"\" [$__range])) or vector(0)",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "edge inbound connections",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum(count_over_time({job=\"netmon\", name=\"edge\", kind=\"conn\"} | regexp `\\[NEW\\]\\s+(?:ipv[46]\\s+\\d+\\s+)?(?P<proto>[a-z0-9]+)\\s+\\d+\\s.*?src=(?P<src>\\S+) dst=(?P<dst>\\S+)(?: sport=\\d+ dport=(?P<dport>\\d+)| type=(?P<icmptype>\\d+))?` | src != \"\" | dst != \"\" | src !~ \"127\\\\..*|::1\" | dst !~ \"127\\\\..*|::1\" | label_format dport=\"{{ or .dport .icmptype }}\" | dst =~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.2|::1\" | src !~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.2|::1\" [$__range])) or vector(0)",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Flagged DNS queries (AUTHOR / TELEMETRY)",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum(count_over_time({job=\"netmon\", kind=\"dns\"} |= \"query[\" | regexp `\\d+ \\S+ query\\[(?P<qtype>\\w+)\\] (?P<qname>\\S+) from ` | qname != \"\" | qname =~ \"(?i)(.*\\\\.)?(openmausbot\\\\.com|mausbot\\\\.(com|page))|omb-[a-z0-9-]+\\\\.fly\\\\.dev|.*milindsoni201\\\\.workers\\\\.dev|(?i)(.*\\\\.)?(posthog\\\\.com|sentry\\\\.io|statsig(api)?\\\\.(com|net)|segment\\\\.io|datadoghq\\\\.com)\" [$__range])) or vector(0)",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "omb outbound: destination IP / port",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "topk(100, sum by (dst, dport, proto) (count_over_time({job=\"netmon\", name=\"omb\", kind=\"conn\"} | regexp `\\[NEW\\]\\s+(?:ipv[46]\\s+\\d+\\s+)?(?P<proto>[a-z0-9]+)\\s+\\d+\\s.*?src=(?P<src>\\S+) dst=(?P<dst>\\S+)(?: sport=\\d+ dport=(?P<dport>\\d+)| type=(?P<icmptype>\\d+))?` | src != \"\" | dst != \"\" | src !~ \"127\\\\..*|::1\" | dst !~ \"127\\\\..*|::1\" | label_format dport=\"{{ or .dport .icmptype }}\" | dst !~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" or src =~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" [$__range])))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "dst": 0,
+              "dport": 1,
+              "proto": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "count"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "count",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Loopback excluded. Look up the IP in 'DNS answers' (or run netmon_report.py for the joined host view)."
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "DNS answers: name → IP",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "topk(100, sum by (rname, ip) (count_over_time({job=\"netmon\", kind=\"dns\"} |~ \" (reply|cached|config) \" | regexp `\\d+ \\S+ (?:reply|cached|config) (?P<rname>\\S+) is (?P<ip>[0-9a-fA-F.:]+)\\s*$` | ip != \"\" [$__range])))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "rname": 0,
+              "ip": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "Value": "count"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "count",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "rname is the name in the answer (a CNAME target when there is one)."
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "omb outbound connections over time",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum by (dst, dport) (count_over_time({job=\"netmon\", name=\"omb\", kind=\"conn\"} | regexp `\\[NEW\\]\\s+(?:ipv[46]\\s+\\d+\\s+)?(?P<proto>[a-z0-9]+)\\s+\\d+\\s.*?src=(?P<src>\\S+) dst=(?P<dst>\\S+)(?: sport=\\d+ dport=(?P<dport>\\d+)| type=(?P<icmptype>\\d+))?` | src != \"\" | dst != \"\" | src !~ \"127\\\\..*|::1\" | dst !~ \"127\\\\..*|::1\" | label_format dport=\"{{ or .dport .icmptype }}\" | dst !~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" or src =~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.3|::1\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "{{dst}}:{{dport}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "DNS queries",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "topk(100, sum by (qname, qtype) (count_over_time({job=\"netmon\", kind=\"dns\"} |= \"query[\" | regexp `\\d+ \\S+ query\\[(?P<qtype>\\w+)\\] (?P<qname>\\S+) from ` | qname != \"\" [$__range])))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "qname": 0,
+              "qtype": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "Value": "count"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "count",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Flagged DNS queries",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "sum by (flag, qname) (count_over_time({job=\"netmon\", kind=\"dns\"} |= \"query[\" | regexp `\\d+ \\S+ query\\[(?P<qtype>\\w+)\\] (?P<qname>\\S+) from ` | qname != \"\" | qname =~ \"(?i)(.*\\\\.)?(openmausbot\\\\.com|mausbot\\\\.(com|page))|omb-[a-z0-9-]+\\\\.fly\\\\.dev|.*milindsoni201\\\\.workers\\\\.dev\" | label_format flag=\"AUTHOR\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "B",
+          "expr": "sum by (flag, qname) (count_over_time({job=\"netmon\", kind=\"dns\"} |= \"query[\" | regexp `\\d+ \\S+ query\\[(?P<qtype>\\w+)\\] (?P<qname>\\S+) from ` | qname != \"\" | qname =~ \"(?i)(.*\\\\.)?(posthog\\\\.com|sentry\\\\.io|statsig(api)?\\\\.(com|net)|segment\\\\.io|datadoghq\\\\.com)\" | label_format flag=\"TELEMETRY\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "flag": 0,
+              "qname": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "Value": "count"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "count",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Author's own domains and telemetry endpoints (FLAGS in netmon_report.py). Empty is good."
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "edge inbound: source IP → local port",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "topk(100, sum by (src, dport, proto) (count_over_time({job=\"netmon\", name=\"edge\", kind=\"conn\"} | regexp `\\[NEW\\]\\s+(?:ipv[46]\\s+\\d+\\s+)?(?P<proto>[a-z0-9]+)\\s+\\d+\\s.*?src=(?P<src>\\S+) dst=(?P<dst>\\S+)(?: sport=\\d+ dport=(?P<dport>\\d+)| type=(?P<icmptype>\\d+))?` | src != \"\" | dst != \"\" | src !~ \"127\\\\..*|::1\" | dst !~ \"127\\\\..*|::1\" | label_format dport=\"{{ or .dport .icmptype }}\" | dst =~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.2|::1\" | src !~ \"127\\\\.0\\\\.0\\\\.1|172\\\\.25\\\\.0\\\\.2|172\\\\.25\\\\.0\\\\.3|172\\\\.26\\\\.0\\\\.2|::1\" [$__range])))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "src": 0,
+              "dport": 1,
+              "proto": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "count"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "count",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "On Docker Desktop every connection from the host shows up as the gateway IP."
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "Raw events",
+      "datasource": {
+        "type": "loki",
+        "uid": "netmon-loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "netmon-loki"
+          },
+          "refId": "A",
+          "expr": "{job=\"netmon\", name=~\"$name\", kind=~\"$kind\"}",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": false,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ]
+}
